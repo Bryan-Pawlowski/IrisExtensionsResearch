@@ -4,7 +4,6 @@
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dx10.h>
-#include <stdio.h>
 #include "IGFXExtensions\ID3D10Extensions.h"
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
 
