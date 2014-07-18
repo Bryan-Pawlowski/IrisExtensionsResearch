@@ -1,0 +1,49 @@
+INTEL EXTENSION BASICS:
+
+You must enable the intel extensions within the application, and also within
+your shader (pixel).  These functions are easy to find inside of the intel
+extension C++ and .hlsl files.  These files must be included in the directory
+of your project, OR keep them in a central location on your system.  So long
+as you know the path to the intel extension helper files, you can access them.
+
+
+
+
+
+
+TO MAKE SURE ALL FRAGMENTS ARE RENTERED:
+
+We need to disable culling, (CULL_NONE) and also make sure the depth stensil
+tests approve render of all sides.
+
+
+
+
+
+
+
+EFFECT (.fx) FILES:
+
+In this design, I think it would be best to put everything into an effect
+file.  That way, I can keep all of my Pixel Sync effects in one, readable
+file.  This will make the C++ application more  readable, as well.  For more
+information about effect files, take a look at p. 289 of Beginning DirectX 11
+Game Programming 1st Edition, by Allen Sherrod and Wendy Jones.  Info on
+effect files can also be found on the microsoft developer's website.
+
+Inside of these effect files, it is possible to define a multiple pass
+rendering technique, that way all the application has to do is specify which
+technique it wishes to use.  This will be a good way to demonstrate, in real
+time, certain rendering techniques sans Iris Extensions against the same
+techniques using IrisExtensions.  For ease of programming, I will include a
+readme file that contains information on what key presses will do what.
+Clickable menus if time permits.
+
+
+
+
+TODO FOR THIS WEEKEND (HARD DEADLINE FOR MONDAY AFTERNOON, 5 PM):
+
+- File Obj. Reader.
+- Include a couple of simple .obj files (Cube, Sphere, rabbit, buddha, [maybe]Luck Dragon)
+- Try your hand at creating your own .fx file.
