@@ -29,6 +29,8 @@ ID3D11Buffer *pVBuffer;                // the pointer to the vertex buffer
 ID3D11Buffer *pIBuffer;                // the pointer to the index buffer
 ID3D11Buffer *pCBuffer;                // the pointer to the constant buffer
 IGFX::Extensions myExtensions;
+ID3D11RasterizerState* RenderState;	   // We are setting the Rasterizer state, at this point, to disable culling.
+ID3D11BlendState* g_pBlendState;
 
 // a struct to define a single vertex
 struct VERTEX { FLOAT X, Y, Z; D3DXVECTOR3 Normal; };
@@ -187,14 +189,16 @@ void InitD3D(HWND hWnd)
 	ID3D11Texture2D *pDepthBuffer;
 	dev->CreateTexture2D(&texd, NULL, &pDepthBuffer);
 
+	
 	// create the depth buffer
 	D3D11_DEPTH_STENCIL_VIEW_DESC dsvd;
 	ZeroMemory(&dsvd, sizeof(dsvd));
 
 	dsvd.Format = DXGI_FORMAT_D32_FLOAT;
 	dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+	dsvd.Texture2D.MipSlice = 5;
 
-	dev->CreateDepthStencilView(pDepthBuffer, &dsvd, &zbuffer);
+	HRESULT res = dev->CreateDepthStencilView(pDepthBuffer, &dsvd, &zbuffer);
 	pDepthBuffer->Release();
 
 	// get the address of the back buffer
@@ -304,6 +308,7 @@ void CleanD3D(void)
 	pCBuffer->Release();
 	swapchain->Release();
 	backbuffer->Release();
+	RenderState->Release();
 	dev->Release();
 	devcon->Release();
 }
@@ -393,6 +398,73 @@ void InitGraphics()
 	devcon->Map(pIBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);    // map the buffer
 	memcpy(ms.pData, OurIndices, sizeof(OurIndices));                   // copy the data
 	devcon->Unmap(pIBuffer, NULL);
+
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_SOLID;
+	wfdesc.CullMode = D3D11_CULL_NONE;
+	dev->CreateRasterizerState(&wfdesc, &RenderState);
+
+	devcon->RSSetState(RenderState);
+
+	//set the depth stencil state.
+
+	D3D11_DEPTH_STENCIL_DESC dsDesc;
+
+	// Depth test params
+	dsDesc.DepthEnable = false;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+
+	// Stencil test parameters
+	dsDesc.StencilEnable = true;
+	dsDesc.StencilReadMask = 0xFF;
+	dsDesc.StencilWriteMask = 0xFF;
+
+	// If Pixel is front-facing...
+	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+	//if pixel is back-facing...
+
+	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+
+	// Now after describing the state, we want to create and bind it to the device context.
+
+	ID3D11DepthStencilState * pDSState;
+	HRESULT res = dev->CreateDepthStencilState(&dsDesc, &pDSState);
+
+
+	//Set up blending state
+
+	D3D11_BLEND_DESC BlendState;
+
+	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
+	BlendState.RenderTarget[0].BlendEnable = TRUE;
+	BlendState.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	BlendState.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendState.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	BlendState.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	BlendState.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+	BlendState.RenderTarget[0].BlendOpAlpha= D3D11_BLEND_OP_ADD;
+	BlendState.RenderTarget[0].RenderTargetWriteMask = 0x0f;
+
+	dev->CreateBlendState(&BlendState, &g_pBlendState);
+
+	devcon->OMSetDepthStencilState(pDSState, 1);
+
+	float blendfactor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+
+	UINT sampleMask = 0xffffffff;
+
+	devcon->OMSetBlendState( g_pBlendState, blendfactor, sampleMask);
+
 }
 
 
@@ -404,7 +476,7 @@ void InitPipeline()
 	HRESULT Result;
 
 
-	Result = D3DX11CompileFromFile(L"./shaders.hlsl", 0, 0, "VShader", "vs_5_0", 0, 0, 0, &VS, &VErrors, 0);
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "VShader", "vs_4_0", 0, 0, 0, &VS, &VErrors, 0);
 	if (Result)
 	{
 		char *buff = (char *)VErrors->GetBufferPointer();
@@ -414,7 +486,7 @@ void InitPipeline()
 		MessageBox(HWND_DESKTOP, myString, L"Vertex Shader Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
-	Result = D3DX11CompileFromFile(L"./shaders.hlsl", 0, 0, "PShader", "ps_5_0", 0, 0, 0, &PS, &PErrors, 0);
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "PShader", "ps_5_0", 0, 0, 0, &PS, &PErrors, 0);
 	if (Result)
 	{
 		char *buff = (char *)PErrors->GetBufferPointer();

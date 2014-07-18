@@ -1,12 +1,13 @@
 
-typedef struct SSSControlSurface
+//for now, we will assume that our object is directly in front of the light.
+
+#define nodes 2
+
+struct pixelInfo
 {
-	bool clear;		// have we already started evaluating this point yet?
-	float depth;
+	float zPos, lightIntensity;
 };
 
-typedef struct SSSPointData
-{
-	float lightIntensity;
-};
-
+RWTexture2D<float> depthUAV				: register ( u1 );
+RWTexture2D<float> lightUAV				: register ( u2 );
+RWTexture2D<uint>  pixelTouched			: register ( ps_5_0, u3 );
