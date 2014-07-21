@@ -7,18 +7,10 @@ of your project, OR keep them in a central location on your system.  So long
 as you know the path to the intel extension helper files, you can access them.
 
 
-
-
-
-
-TO MAKE SURE ALL FRAGMENTS ARE RENTERED:
+TO MAKE SURE ALL FRAGMENTS ARE RENDERED:
 
 We need to disable culling, (CULL_NONE) and also make sure the depth stensil
 tests approve render of all sides.
-
-
-
-
 
 
 
@@ -40,10 +32,23 @@ readme file that contains information on what key presses will do what.
 Clickable menus if time permits.
 
 
+UAV Usage:
+
+- Cannot just be defined within the shaders.  Must use application side to set
+the UAV for pixel-ordering access. We must create and set the size, prior to
+
+- usage inside of our pixel shaders.
+
 
 
 TODO FOR THIS WEEKEND (HARD DEADLINE FOR MONDAY AFTERNOON, 5 PM):
 
 - File Obj. Reader.
-- Include a couple of simple .obj files (Cube, Sphere, rabbit, buddha, [maybe]Luck Dragon)
+
+- Include a couple of simple .obj files (Cube, Sphere, rabbit, buddha,
+  [maybe]Luck Dragon)
+
 - Try your hand at creating your own .fx file.
+
+
+

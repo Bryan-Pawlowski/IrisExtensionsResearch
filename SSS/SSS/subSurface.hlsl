@@ -8,6 +8,5 @@ struct pixelInfo
 	float zPos, lightIntensity;
 };
 
-RWTexture2D<float> depthUAV				: register ( u1 );
+
 RWTexture2D<float> lightUAV				: register ( u2 );
-RWTexture2D<uint>  pixelTouched			: register ( ps_5_0, u3 );
