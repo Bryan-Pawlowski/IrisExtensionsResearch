@@ -67,7 +67,7 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 nor
 	if (position.z < 5.)
 	{
 		color.a = .2;
-		pixelTouched[pixelAddr] = 2;
+		pixelTouched[pixelAddr] = 1;
 	}
 	else
 	{

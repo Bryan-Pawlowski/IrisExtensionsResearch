@@ -4,6 +4,7 @@
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dx10.h>
+#include <array>
 #include "IGFXExtensions\ID3D10Extensions.h"
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
 
@@ -16,21 +17,24 @@
 #define SCREEN_WIDTH  800
 #define SCREEN_HEIGHT 600
 
+
 // global declarations
-IDXGISwapChain *swapchain;             // the pointer to the swap chain interface
-ID3D11Device *dev;                     // the pointer to our Direct3D device interface
-ID3D11DeviceContext *devcon;           // the pointer to our Direct3D device context
-ID3D11RenderTargetView *backbuffer;    // the pointer to our back buffer
-ID3D11DepthStencilView *zbuffer;       // the pointer to our depth buffer
-ID3D11InputLayout *pLayout;            // the pointer to the input layout
-ID3D11VertexShader *pVS;               // the pointer to the vertex shader
-ID3D11PixelShader *pPS;                // the pointer to the pixel shader
-ID3D11Buffer *pVBuffer;                // the pointer to the vertex buffer
-ID3D11Buffer *pIBuffer;                // the pointer to the index buffer
-ID3D11Buffer *pCBuffer;                // the pointer to the constant buffer
+IDXGISwapChain *swapchain;				// the pointer to the swap chain interface
+ID3D11Device *dev;						// the pointer to our Direct3D device interface
+ID3D11DeviceContext *devcon;			// the pointer to our Direct3D device context
+ID3D11RenderTargetView *backbuffer;		// the pointer to our back buffer
+ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
+ID3D11InputLayout *pLayout;				// the pointer to the input layout
+ID3D11VertexShader *pVS;				// the pointer to the vertex shader
+ID3D11PixelShader *pPS;					// the pointer to the pixel shader
+ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
+ID3D11Buffer *pIBuffer;					// the pointer to the index buffer
+ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
 IGFX::Extensions myExtensions;
-ID3D11RasterizerState* RenderState;	   // We are setting the Rasterizer state, at this point, to disable culling.
+ID3D11RasterizerState* RenderState;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11BlendState* g_pBlendState;
+ID3D11UnorderedAccessView *pUAV;		// Our application-side UAV entity.
+ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
 
 // a struct to define a single vertex
 struct VERTEX { FLOAT X, Y, Z; D3DXVECTOR3 Normal; };
@@ -207,7 +211,6 @@ void InitD3D(HWND hWnd)
 
 	// use the back buffer address to create the render target
 	dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
-	pBackBuffer->Release();
 
 	// set the render target as the back buffer
 	devcon->OMSetRenderTargets(1, &backbuffer, zbuffer);
@@ -228,6 +231,27 @@ void InitD3D(HWND hWnd)
 
 	HRESULT	IntelResult = IGFX::Init(dev);										//initialize our Iris Extensions
 	if (IntelResult == S_OK) myExtensions = IGFX::getAvailableExtensions(dev);	//check what we have available and store it in a global (for checks)
+
+
+	// Since this texture will technically be "multisampled," we don't need to pass any initial data. 
+
+	//create UAV for the pixel shaders to use
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
+
+	UAVdesc.Format = DXGI_FORMAT_R32_UINT;
+	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	
+	HRESULT UAVRes = dev->CreateUnorderedAccessView( pBackBuffer, &UAVdesc, &pUAV);
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful..." L"Vertex Shader Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+
+	pBackBuffer->Release();
+
+
 
 	InitPipeline();
 	InitGraphics();
