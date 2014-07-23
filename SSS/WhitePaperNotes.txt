@@ -36,10 +36,36 @@ UAV Usage:
 
 - Cannot just be defined within the shaders.  Must use application side to set
 the UAV for pixel-ordering access. We must create and set the size, prior to
+usage inside of our pixel shaders.
 
-- usage inside of our pixel shaders.
+How to create a UAV:
 
+We first create a texture, that will act as a "render target."  At first
+glance, this looks to be sort of a bogus object created without reason.
+However, within our pixel shader, we need some sort of empty texture with
+which the pixel shaders can refer to and interact with.  So, what we will need
+is some sort of a UAV, in this case, a 2D texture of UINTs.  For the "pulse
+check" part of this project, I just use some UINTS to determine whether a
+pixel has been touched by a previous fragments. Now, on to the step-by-step to
+creating a UAV:
 
+- Create a D3D11_TEXTURE2D object.  Make it global.
+
+- See the code to see what we assign each value to the texture description.
+
+- The bind flags need to show that the texture is an Unordered Access shader
+resource, and we need to disguise it as a render target, that way we have a
+way to initialize the sive of our RWTexture2D inside of our shader.
+
+- Create the texture with a NULL argument for the pData argument.  For a RW
+texture, this is necessary, since the standard dictates the intial values must
+be zero.
+
+To see how I initialized and created the texture, run a search of the keyword
+"texDesc" on the DXApp.cpp file.  This will show you what you need to know.
+
+- After that, we go on to creating the actual UAV.  The UAV pointer on the
+application side should, again, be global.  
 
 TODO FOR THIS WEEKEND (HARD DEADLINE FOR MONDAY AFTERNOON, 5 PM):
 

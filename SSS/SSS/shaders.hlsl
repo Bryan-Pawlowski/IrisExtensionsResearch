@@ -53,27 +53,29 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 
 	return output;
 }
-RWTexture2D<uint>  pixelTouched			: register (u3);
-[earlydepthstencil]
+RWTexture2D<uint>  pixelTouched			: register (u1);
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 normal : NORMAL0, float4 lightV : NORMAL1, float4 eyeV : NORMAL2, float4 position : POSITION) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 dim;
 	bool touched;
 
-	IntelExt_Init();
+	//IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV( 3 );
+	//IntelExt_BeginPixelShaderOrdering(  );
 	if (position.z < 5.)
 	{
-		color.a = .2;
+		color.a = .75;
 		pixelTouched[pixelAddr] = 1;
 	}
 	else
 	{
 		pixelTouched.GetDimensions(dim[0], dim[1]);
 		color.a = .7;
-		if (dim[0] < 1) color.r += .25;
+		if (pixelTouched[pixelAddr] != 0){
+			color.r += .75;
+			pixelTouched[pixelAddr] = 0;
+		}
 	}
 
 

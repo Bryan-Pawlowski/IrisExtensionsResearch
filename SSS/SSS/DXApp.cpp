@@ -232,19 +232,41 @@ void InitD3D(HWND hWnd)
 	HRESULT	IntelResult = IGFX::Init(dev);										//initialize our Iris Extensions
 	if (IntelResult == S_OK) myExtensions = IGFX::getAvailableExtensions(dev);	//check what we have available and store it in a global (for checks)
 
+	//create UAV texture.  If you want the texture to be a part of a UAV resource, it MUST look like this.
+
+	D3D11_TEXTURE2D_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = SCREEN_WIDTH;
+	texDesc.Height = SCREEN_HEIGHT;
+	texDesc.MipLevels = 1;
+	texDesc.ArraySize = 1;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Usage = D3D11_USAGE_DEFAULT;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+	texDesc.Format = DXGI_FORMAT_R32_UINT;
+	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
 
 	// Since this texture will technically be "multisampled," we don't need to pass any initial data. 
 
 	//create UAV for the pixel shaders to use
 
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
+	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
 
 	UAVdesc.Format = DXGI_FORMAT_R32_UINT;
 	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	
-	HRESULT UAVRes = dev->CreateUnorderedAccessView( pBackBuffer, &UAVdesc, &pUAV);
+	UAVdesc.Texture2D.MipSlice = 0;
+
+	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV);
 	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful..." L"Vertex Shader Error!", MB_OK);
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"Vertex Shader Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
 
@@ -488,6 +510,8 @@ void InitGraphics()
 	UINT sampleMask = 0xffffffff;
 
 	devcon->OMSetBlendState( g_pBlendState, blendfactor, sampleMask);
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews( D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, &backbuffer, zbuffer, 1, 1, &pUAV, 0);
 
 }
 
