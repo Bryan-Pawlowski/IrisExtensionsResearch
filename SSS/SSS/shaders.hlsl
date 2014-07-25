@@ -60,24 +60,21 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 nor
 	uint2 dim;
 	bool touched;
 
-	//IntelExt_Init();
+	IntelExt_Init();
 
-	//IntelExt_BeginPixelShaderOrdering(  );
-	if (position.z < 5.)
+	IntelExt_BeginPixelShaderOrderingOnUAV( 1 );
+	
+	if (pixelTouched[pixelAddr] == 0 )
 	{
-		color.a = .75;
+		color.a = .05;
 		pixelTouched[pixelAddr] = 1;
 	}
 	else
 	{
-		pixelTouched.GetDimensions(dim[0], dim[1]);
-		color.a = .7;
-		if (pixelTouched[pixelAddr] != 0){
-			color.r += .75;
-			pixelTouched[pixelAddr] = 0;
-		}
+		color.a = 1;
+		color.r = .5f;
 	}
-
+	
 
 	return color;
 }

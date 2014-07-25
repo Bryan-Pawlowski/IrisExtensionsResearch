@@ -1,12 +1,13 @@
 // include the basic windows header files and the Direct3D header files
+
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dx10.h>
-#include <array>
 #include "IGFXExtensions\ID3D10Extensions.h"
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
+#include "3DObject.h"
 
 // include the Direct3D Library file
 #pragma comment (lib, "d3d11.lib")
@@ -37,7 +38,7 @@ ID3D11UnorderedAccessView *pUAV;		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
 
 // a struct to define a single vertex
-struct VERTEX { FLOAT X, Y, Z; D3DXVECTOR3 Normal; };
+
 
 // a struct to define the constant buffer
 struct CBUFFER
@@ -511,7 +512,9 @@ void InitGraphics()
 
 	devcon->OMSetBlendState( g_pBlendState, blendfactor, sampleMask);
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews( D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, &backbuffer, zbuffer, 1, 1, &pUAV, 0);
+	ID3D11RenderTargetView *pNullRTView[] = { NULL };
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, pNullRTView, zbuffer, 1, 1, &pUAV, 0);
 
 }
 
