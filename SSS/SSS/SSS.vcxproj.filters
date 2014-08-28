@@ -21,6 +21,9 @@
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp">
       <Filter>Header Files</Filter>
     </ClCompile>
+    <ClCompile Include="3DObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IGFXExtensions\IGFXExtensionsHelper.h">

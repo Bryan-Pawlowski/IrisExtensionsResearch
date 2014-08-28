@@ -24,6 +24,7 @@ IDXGISwapChain *swapchain;				// the pointer to the swap chain interface
 ID3D11Device *dev;						// the pointer to our Direct3D device interface
 ID3D11DeviceContext *devcon;			// the pointer to our Direct3D device context
 ID3D11RenderTargetView *backbuffer;		// the pointer to our back buffer
+ID3D11RenderTargetView *UAVBuffer;		// The pointer to our UAV render target.
 ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
 ID3D11InputLayout *pLayout;				// the pointer to the input layout
 ID3D11VertexShader *pVS;				// the pointer to the vertex shader
@@ -36,6 +37,8 @@ ID3D11RasterizerState* RenderState;		// We are setting the Rasterizer state, at 
 ID3D11BlendState* g_pBlendState;
 ID3D11UnorderedAccessView *pUAV;		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
+
+ID3D11RenderTargetView *RTVs[2];
 
 // a struct to define a single vertex
 
@@ -124,6 +127,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	// clean up DirectX and COM
 	CleanD3D();
 
+//	struct model temp = ReadObject(NULL);
+
 	return msg.wParam;
 }
 
@@ -211,10 +216,10 @@ void InitD3D(HWND hWnd)
 	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
 
 	// use the back buffer address to create the render target
-	dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
+	dev->CreateRenderTargetView(pBackBuffer, NULL, &RTVs[0]);
 
 	// set the render target as the back buffer
-	devcon->OMSetRenderTargets(1, &backbuffer, zbuffer);
+	devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
 
 
 	// Set the viewport
@@ -244,7 +249,7 @@ void InitD3D(HWND hWnd)
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 	texDesc.Format = DXGI_FORMAT_R32_UINT;
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
 	if (texRes != S_OK)
@@ -317,7 +322,7 @@ void RenderFrame(void)
 	cBuffer.modelView = matView;
 
 	// clear the back buffer to a deep blue
-	devcon->ClearRenderTargetView(backbuffer, D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 
 	// clear the depth buffer
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -354,7 +359,7 @@ void CleanD3D(void)
 	pIBuffer->Release();
 	pCBuffer->Release();
 	swapchain->Release();
-	backbuffer->Release();
+	RTVs[0]->Release();
 	RenderState->Release();
 	dev->Release();
 	devcon->Release();
@@ -514,7 +519,7 @@ void InitGraphics()
 
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, pNullRTView, zbuffer, 1, 1, &pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 1, &pUAV, 0);
 
 }
 

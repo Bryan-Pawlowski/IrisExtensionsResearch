@@ -54,6 +54,7 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 	return output;
 }
 RWTexture2D<uint>  pixelTouched			: register (u1);
+RWTexture2D<float> pixDepth				: register (u2);
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 normal : NORMAL0, float4 lightV : NORMAL1, float4 eyeV : NORMAL2, float4 position : POSITION) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
@@ -64,15 +65,14 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 nor
 
 	IntelExt_BeginPixelShaderOrderingOnUAV( 1 );
 	
-	if (pixelTouched[pixelAddr] == 0 )
+	if (pixelTouched[pixelAddr] == 1 )
 	{
-		color.a = .05;
-		pixelTouched[pixelAddr] = 1;
+		color.b = 1.f;
 	}
 	else
 	{
-		color.a = 1;
-		color.r = .5f;
+		color.r = 1.f;
+		pixelTouched[pixelAddr] += 1;
 	}
 	
 

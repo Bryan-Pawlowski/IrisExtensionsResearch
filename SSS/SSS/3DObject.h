@@ -11,16 +11,26 @@ struct VERTEX {
 };
 
 struct VEC3 {
-	FLOAT X, Y, Z;
+	FLOAT x, y, z;
+};
+
+struct VEC2 {
+	FLOAT u, v;
+
+};
+
+struct VEC3UINT {
+	UINT members[3];
+};
+
+struct FACE {
+	VEC3UINT points[3];
 };
 
 struct model { 
-		
 	std::vector<VERTEX> v;		//Vertex (including vertex normals)
-	std::vector<VEC3>	vt;		//Texture Coordinates
-	std::vector<int>	i;
-
+	std::vector<VEC2>	vt;		//Texture Coordinates
 };
 
 
-struct model ReadObject(char* filename);
+//struct model ReadObject(char* filename);

@@ -81,6 +81,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="3DObject.cpp" />
     <ClCompile Include="DXApp.cpp" />
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp" />
   </ItemGroup>
