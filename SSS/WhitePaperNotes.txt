@@ -6,6 +6,15 @@ extension C++ and .hlsl files.  These files must be included in the directory
 of your project, OR keep them in a central location on your system.  So long
 as you know the path to the intel extension helper files, you can access them.
 
+Further, Iris orders pixels in the order of SV_PRIMITIVEID. This primitive ID
+is given to each primitive, and they are arranged in depth-order. As the pixel
+shader executes, it executes in primitive-order. However, this does not
+decessarily guarantee ordered access to shared information. This is where the
+pixel ordering comes into play. Once a critical section of the code is hit, we
+begin our pixel ordering.  Once this barrier is hit, the pixels in-flight are
+arranged by primitive ID, then executed in-order.  This means that depth-
+testing can be combined into one pass.
+
 
 TO MAKE SURE ALL FRAGMENTS ARE RENDERED:
 
@@ -67,7 +76,7 @@ To see how I initialized and created the texture, run a search of the keyword
 - After that, we go on to creating the actual UAV.  The UAV pointer on the
 application side should, again, be global.  
 
-TODO FOR THIS WEEKEND (HARD DEADLINE FOR MONDAY AFTERNOON, 5 PM):
+TODO FOR THIS WEEK (HARD DEADLINE FOR FRIDAY AFTERNOON, 5 PM):
 
 - File Obj. Reader.
 

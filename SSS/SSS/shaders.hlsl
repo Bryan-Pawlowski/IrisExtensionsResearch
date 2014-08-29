@@ -21,8 +21,6 @@ struct VOut
 	float4 position : POSITION;
 };
 
-RWTexture2D<float> depthUAV				: register (ps_5_0, u0);
-
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 {
 	VOut output;
@@ -64,17 +62,21 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 nor
 	IntelExt_Init();
 
 	IntelExt_BeginPixelShaderOrderingOnUAV( 1 );
-	
-	if (pixelTouched[pixelAddr] == 1 )
+
+	uint touch = pixelTouched[pixelAddr];			//So we don't really have to reference this specific read/write during evaluation, we can just put it into its own variable.
+
+	if ( touch == 1 )
 	{
 		color.b = 1.f;
+		touch = 0;
 	}
 	else
 	{
 		color.r = 1.f;
-		pixelTouched[pixelAddr] += 1;
+		touch = 1;
 	}
 	
+	pixelTouched[pixelAddr] = touch; //store the new value here.
 
 	return color;
 }

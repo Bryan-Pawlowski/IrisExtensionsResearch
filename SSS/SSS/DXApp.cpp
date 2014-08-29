@@ -272,9 +272,10 @@ void InitD3D(HWND hWnd)
 
 	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV);
 	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"Vertex Shader Error!", MB_OK);
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
 
 
 	pBackBuffer->Release();
@@ -297,6 +298,9 @@ void RenderFrame(void)
 
 	D3DXMATRIX matRotate, matView, matProjection;
 	D3DXMATRIX matFinal;
+
+	const UINT clear[4] = { 0, 0, 0, 0 };
+	devcon->ClearUnorderedAccessViewUint(pUAV, clear);
 
 	static float Time = 0.0f; Time += 0.0003f;
 
