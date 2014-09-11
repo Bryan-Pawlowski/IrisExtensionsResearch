@@ -7,6 +7,7 @@ struct VERTEX {
 
 	FLOAT X, Y, Z; 
 	D3DXVECTOR3 Normal; 
+	D3DXVECTOR2 UVCoords;
 
 };
 
