@@ -24,7 +24,6 @@ IDXGISwapChain *swapchain;				// the pointer to the swap chain interface
 ID3D11Device *dev;						// the pointer to our Direct3D device interface
 ID3D11DeviceContext *devcon;			// the pointer to our Direct3D device context
 ID3D11RenderTargetView *backbuffer;		// the pointer to our back buffer
-ID3D11RenderTargetView *UAVBuffer;		// The pointer to our UAV render target.
 ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
 ID3D11InputLayout *pLayout;				// the pointer to the input layout
 ID3D11VertexShader *pVS;				// the pointer to the vertex shader
@@ -35,8 +34,12 @@ ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
 IGFX::Extensions myExtensions;
 ID3D11RasterizerState* RenderState;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11BlendState* g_pBlendState;
-ID3D11UnorderedAccessView *pUAV;		// Our application-side UAV entity.
+ID3D11UnorderedAccessView *pUAV[2];		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
+ID3D11Texture2D *pUAVDTex;
+ID3D11Texture2D *depthTex;
+ID3D11RenderTargetView *depthTexBuff;
+ID3D11ShaderResourceView *depthTexSRV;
 
 ID3D11RenderTargetView *RTVs[2];
 
@@ -249,7 +252,7 @@ void InitD3D(HWND hWnd)
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
 	texDesc.Format = DXGI_FORMAT_R32_UINT;
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
 	if (texRes != S_OK)
@@ -270,13 +273,43 @@ void InitD3D(HWND hWnd)
 	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVdesc.Texture2D.MipSlice = 0;
 
-	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV);
+	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV[0]);
 	if (UAVRes != S_OK){
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
 
+	//Add float depth stuff here.
+	D3D11_TEXTURE2D_DESC texDesc1;
+	ZeroMemory(&texDesc1, sizeof(texDesc1));
+	texDesc1.Width = SCREEN_WIDTH;
+	texDesc1.Height = SCREEN_HEIGHT;
+	texDesc1.MipLevels = 1;
+	texDesc1.ArraySize = 1;
+	texDesc1.SampleDesc.Count = 1;
+	texDesc1.SampleDesc.Quality = 0;
+	texDesc1.Usage = D3D11_USAGE_DEFAULT;
+	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc1.Format = DXGI_FORMAT_R32_FLOAT;
+	texRes = dev->CreateTexture2D(&texDesc1, NULL, &pUAVDTex);
 
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
+
+	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAVdesc.Texture2D.MipSlice = 0;
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex, &UAVdesc, &pUAV[1]);
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 
 	pBackBuffer->Release();
 
@@ -300,7 +333,10 @@ void RenderFrame(void)
 	D3DXMATRIX matFinal;
 
 	const UINT clear[4] = { 0, 0, 0, 0 };
-	devcon->ClearUnorderedAccessViewUint(pUAV, clear);
+	devcon->ClearUnorderedAccessViewUint(pUAV[0], clear);
+
+	const float fClear[4] = { 0., 0., 0., 0. };
+	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
 
 	static float Time = 0.0f; Time += 0.0003f;
 
@@ -314,12 +350,13 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixPerspectiveFovLH(&matProjection,
+	D3DXMatrixOrthoRH(&matProjection, 4, 4, 0, 1);
+	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(45),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
 		1.0f,                                       // near view-plane
 		100.0f);                                    // far view-plane
-
+		*/
 	// load the matrices into the constant buffer
 	cBuffer.Final = matRotate * matView * matProjection;
 	cBuffer.Rotation = matRotate;
@@ -468,9 +505,9 @@ void InitGraphics()
 	D3D11_DEPTH_STENCIL_DESC dsDesc;
 
 	// Depth test params
-	dsDesc.DepthEnable = false;
+	dsDesc.DepthEnable = true;
 	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-	dsDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	dsDesc.DepthFunc = D3D11_COMPARISON_ALWAYS;
 
 	// Stencil test parameters
 	dsDesc.StencilEnable = true;
@@ -480,15 +517,15 @@ void InitGraphics()
 	// If Pixel is front-facing...
 	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_GREATER;
 
 	//if pixel is back-facing...
 
 	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_ZERO;
+	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_GREATER;
 
 
 	// Now after describing the state, we want to create and bind it to the device context.
@@ -502,7 +539,7 @@ void InitGraphics()
 	D3D11_BLEND_DESC BlendState;
 
 	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
-	BlendState.RenderTarget[0].BlendEnable = TRUE;
+	BlendState.RenderTarget[0].BlendEnable = FALSE;
 	BlendState.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
 	BlendState.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	BlendState.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
@@ -523,7 +560,7 @@ void InitGraphics()
 
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 1, &pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 2, pUAV, 0);
 
 }
 

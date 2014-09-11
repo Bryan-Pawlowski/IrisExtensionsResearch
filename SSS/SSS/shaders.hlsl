@@ -15,26 +15,12 @@ struct VOut
 {
 	float4 svposition : SV_POSITION;
 	float4 color : COLOR;
-	float4 normal : NORMAL0;
-	float4 lightV : NORMAL1;
-	float4 eyeV : NORMAL2;
 	float4 position : POSITION;
 };
 
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 {
 	VOut output;
-
-	float4 ECPosition = mul(modelView, position);
-		//vector from point to light
-		float3 ECP;
-		float3 lightVect = lightvec.xyz - ECPosition.xyz;
-		//vector from point to eye position
-		float3 eyeVect = float3(0.0, 0.0, 0.0) - ECPosition.xyz;
-
-		output.lightV = float4(lightVect, 1.0);
-	output.eyeV = float4(eyeVect, 1.0);
-
 	output.svposition = mul(final, position);
 	output.position = mul(final, position);
 
@@ -47,36 +33,33 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 		float diffusebrightness = saturate(dot(norm, lightvec));
 	output.color += lightcol * diffusebrightness;
 
-	output.normal = norm;
-
 	return output;
 }
 RWTexture2D<uint>  pixelTouched			: register (u1);
 RWTexture2D<float> pixDepth				: register (u2);
-float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 normal : NORMAL0, float4 lightV : NORMAL1, float4 eyeV : NORMAL2, float4 position : POSITION) : SV_TARGET
+RWTexture2D<float4> prevCol				: register (u3);
+float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 dim;
 	bool touched;
-
+	float total;
+	
 	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV( 1 );
+	IntelExt_BeginPixelShaderOrderingOnUAV( 2 );
 
-	uint touch = pixelTouched[pixelAddr];			//So we don't really have to reference this specific read/write during evaluation, we can just put it into its own variable.
+	float depth = pixDepth[pixelAddr];
 
-	if ( touch == 1 )
+	if (depth == 0)
 	{
-		color.b = 1.f;
-		touch = 0;
+		depth = position.z;
 	}
-	else
-	{
-		color.r = 1.f;
-		touch = 1;
+	else {
+		total = abs(position.z - depth);
+		color.g = total/2;
+		depth = position.z;
 	}
-	
-	pixelTouched[pixelAddr] = touch; //store the new value here.
-
+	pixDepth[pixelAddr] = depth;
 	return color;
 }
