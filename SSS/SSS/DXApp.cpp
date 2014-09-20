@@ -262,7 +262,62 @@ void InitD3D(HWND hWnd)
 	}
 
 
-	// Since this texture will technically be "multisampled," we don't need to pass any initial data. 
+	//Here is where I set up our texture which will be written to on the first pass.
+
+	D3D11_TEXTURE2D_DESC textureDesc;
+	D3D11_RENDER_TARGET_VIEW_DESC rendertargetViewDesc;
+	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc;
+
+	ZeroMemory(&textureDesc, sizeof(textureDesc));
+
+	textureDesc.Width = SCREEN_WIDTH;
+	textureDesc.Height = SCREEN_HEIGHT;
+	textureDesc.MipLevels = 1;
+	textureDesc.ArraySize = 1;
+	textureDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.MiscFlags = 0;
+
+	//Create the depth texture
+
+	texRes = dev->CreateTexture2D(&textureDesc, NULL, &depthTex);
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	// our depth texture is technically a render target.  So, we could actually sync on the render target!  We won't, though.
+	rendertargetViewDesc.Format = textureDesc.Format;
+	rendertargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	rendertargetViewDesc.Texture2D.MipSlice = 0;
+
+	texRes = dev->CreateRenderTargetView(depthTex, &rendertargetViewDesc, &depthTexBuff);
+	
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+	
+
+	//set up shader resource view
+	
+	shaderResourceViewDesc.Format = textureDesc.Format;
+	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
+	shaderResourceViewDesc.Texture2D.MipLevels = 1;
+
+	texRes = dev->CreateShaderResourceView( depthTex, &shaderResourceViewDesc, &depthTexSRV );
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 
 	//create UAV for the pixel shaders to use
 
@@ -345,7 +400,7 @@ void RenderFrame(void)
 
 	// create a view matrix
 	D3DXMatrixLookAtLH(&matView,
-		&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
+		&D3DXVECTOR3(0.5f, .75f, .25f),   // the camera position
 		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
@@ -609,7 +664,7 @@ void InitPipeline()
 		{ "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
-	dev->CreateInputLayout(ied, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
+	HRESULT OK = dev->CreateInputLayout(ied, 3, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
 	devcon->IASetInputLayout(pLayout);
 
 	// create the constant buffer

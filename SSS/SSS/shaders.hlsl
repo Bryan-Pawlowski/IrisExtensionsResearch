@@ -16,9 +16,10 @@ struct VOut
 	float4 svposition : SV_POSITION;
 	float4 color : COLOR;
 	float4 position : POSITION;
+	float2 UVs : UV;
 };
 
-VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
+VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : UV)
 {
 	VOut output;
 	output.svposition = mul(final, position);
@@ -31,19 +32,24 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL)
 	// calculate the diffuse light and add it to the ambient light
 	float4 norm = normalize(mul(rotation, normal));
 		float diffusebrightness = saturate(dot(norm, lightvec));
+	//if (texCoord.x >= 0.5f) output.color.b = 1.0;
 	output.color += lightcol * diffusebrightness;
+
+	output.UVs = texCoord;
 
 	return output;
 }
 RWTexture2D<uint>  pixelTouched			: register (u1);
 RWTexture2D<float> pixDepth				: register (u2);
-RWTexture2D<float4> prevCol				: register (u3);
-float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION) : SV_TARGET
+RWTexture2D<float> prevCol				: register (u3);
+float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 dim;
 	bool touched;
 	float total;
+
+	//if ( UVs.y > .2f ) color.b = 1 - UVs.y;
 	
 	IntelExt_Init();
 
@@ -55,11 +61,14 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	{
 		depth = position.z;
 	}
-	else {
+	else if (depth >= position.z - .01f && depth <= position.z +.01f) discard;
+	else
+	{
 		total = abs(position.z - depth);
-		color.g = total/2;
-		depth = position.z;
+		color.g += total/3;
+		depth = depth - position.z;
 	}
 	pixDepth[pixelAddr] = depth;
+	
 	return color;
 }
