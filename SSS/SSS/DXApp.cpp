@@ -1,5 +1,11 @@
 // include the basic windows header files and the Direct3D header files
 
+
+// include the Direct3D Library file
+#pragma comment (lib, "d3d11.lib")
+#pragma comment (lib, "d3dx11.lib")
+#pragma comment (lib, "d3dx10.lib")
+
 #include <windows.h>
 #include <windowsx.h>
 #include <d3d11.h>
@@ -9,14 +15,10 @@
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
 #include "3DObject.h"
 
-// include the Direct3D Library file
-#pragma comment (lib, "d3d11.lib")
-#pragma comment (lib, "d3dx11.lib")
-#pragma comment (lib, "d3dx10.lib")
 
 // define the screen resolution
-#define SCREEN_WIDTH  800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH  1920
+#define SCREEN_HEIGHT 1080
 
 
 // global declarations
@@ -32,14 +34,17 @@ ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
 ID3D11Buffer *pIBuffer;					// the pointer to the index buffer
 ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
 IGFX::Extensions myExtensions;
-ID3D11RasterizerState* RenderState;		// We are setting the Rasterizer state, at this point, to disable culling.
+ID3D11RasterizerState* DisableCull;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11BlendState* g_pBlendState;
-ID3D11UnorderedAccessView *pUAV[2];		// Our application-side UAV entity.
+ID3D11UnorderedAccessView *pUAV[3];		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
 ID3D11Texture2D *pUAVDTex;
+ID3D11Texture2D *pUAVDTex2;
 ID3D11Texture2D *depthTex;
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *depthTexSRV;
+ID3D11DepthStencilState * pDSState;
+
 
 ID3D11RenderTargetView *RTVs[2];
 
@@ -366,6 +371,40 @@ void InitD3D(HWND hWnd)
 		exit(EXIT_FAILURE);
 	}
 
+	//Add in-object float depth stuff here.
+
+	D3D11_TEXTURE2D_DESC texDesc2;
+	ZeroMemory(&texDesc2, sizeof(texDesc2));
+	texDesc2.Width = 1024;
+	texDesc2.Height = 1024;
+	texDesc2.MipLevels = 1;
+	texDesc2.ArraySize = 1;
+	texDesc2.SampleDesc.Count = 1;
+	texDesc2.SampleDesc.Quality = 0;
+	texDesc2.Usage = D3D11_USAGE_DEFAULT;
+	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
+
+	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAVDesc2.Texture2D.MipSlice = 0;
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVdesc, &pUAV[2]);
+
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
 	pBackBuffer->Release();
 
 
@@ -456,7 +495,7 @@ void CleanD3D(void)
 	pCBuffer->Release();
 	swapchain->Release();
 	RTVs[0]->Release();
-	RenderState->Release();
+	DisableCull->Release();
 	dev->Release();
 	devcon->Release();
 }
@@ -551,9 +590,9 @@ void InitGraphics()
 	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
 	wfdesc.FillMode = D3D11_FILL_SOLID;
 	wfdesc.CullMode = D3D11_CULL_NONE;
-	dev->CreateRasterizerState(&wfdesc, &RenderState);
+	dev->CreateRasterizerState(&wfdesc, &DisableCull);
 
-	devcon->RSSetState(RenderState);
+	devcon->RSSetState(DisableCull);
 
 	//set the depth stencil state.
 
@@ -570,26 +609,23 @@ void InitGraphics()
 	dsDesc.StencilWriteMask = 0xFF;
 
 	// If Pixel is front-facing...
-	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_DECR;
 	dsDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
-	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
-	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_GREATER;
+	dsDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
 	//if pixel is back-facing...
 
 	dsDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
 	dsDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
-	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_ZERO;
-	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_GREATER;
+	dsDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	dsDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
 
 
 	// Now after describing the state, we want to create and bind it to the device context.
 
-	ID3D11DepthStencilState * pDSState;
+	
 	HRESULT res = dev->CreateDepthStencilState(&dsDesc, &pDSState);
-
-
-	//Set up blending state
 
 	D3D11_BLEND_DESC BlendState;
 
@@ -615,7 +651,7 @@ void InitGraphics()
 
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 2, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 3, pUAV, 0);
 
 }
 

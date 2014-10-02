@@ -41,34 +41,41 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 }
 RWTexture2D<uint>  pixelTouched			: register (u1);
 RWTexture2D<float> pixDepth				: register (u2);
-RWTexture2D<float> prevCol				: register (u3);
+RWTexture2D<float> modelDepth			: register (u3);
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 dim;
 	bool touched;
 	float total;
+	uint2 uv;
+	uv.x = int(1024.f * UVs.x);
+	uv.y = int(1024.f * UVs.y);
 
-	//if ( UVs.y > .2f ) color.b = 1 - UVs.y;
+	//color.b = (float)uv.x / 1024.f;
+	//color.r = (float)uv.y / 1024.f;
 	
 	IntelExt_Init();
 
 	IntelExt_BeginPixelShaderOrderingOnUAV( 2 );
 
 	float depth = pixDepth[pixelAddr];
+	float mdepth = modelDepth[uv];
 
 	if (depth == 0)
 	{
 		depth = position.z;
+		mdepth = 0;
 	}
-	else if (depth >= position.z - .01f && depth <= position.z +.01f) discard;
-	else
+	//else if (depth >= position.z - .01f && depth <= position.z +.01f) discard;
+	else if (position.z != depth)
 	{
 		total = abs(position.z - depth);
-		color.g += total/3;
-		depth = depth - position.z;
+		color.g += total/10;
+		mdepth = total;
 	}
 	pixDepth[pixelAddr] = depth;
-	
+	modelDepth[uv] = mdepth;
+
 	return color;
 }
