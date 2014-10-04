@@ -21,7 +21,7 @@
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp">
       <Filter>Header Files</Filter>
     </ClCompile>
-    <ClCompile Include="3DObject.cpp">
+    <ClCompile Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -30,6 +30,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="IGFXExtensions\ID3D10Extensions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

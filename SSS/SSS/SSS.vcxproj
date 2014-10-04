@@ -82,11 +82,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="3DObject.cpp" />
+    <ClCompile Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.cpp" />
     <ClCompile Include="DXApp.cpp" />
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.h" />
     <ClInclude Include="IGFXExtensions\ID3D10Extensions.h" />
     <ClInclude Include="IGFXExtensions\IGFXExtensionsHelper.h" />
   </ItemGroup>
