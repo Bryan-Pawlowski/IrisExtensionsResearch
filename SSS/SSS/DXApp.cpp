@@ -50,6 +50,9 @@ ID3D11RenderTargetView *RTVs[2];
 
 // a struct to define a single vertex
 
+Model *myModel;  //test use of my simple model class.
+ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object class, once I have that functionality.
+
 
 // a struct to define the constant buffer
 struct CBUFFER
@@ -557,6 +560,22 @@ void InitGraphics()
 	memcpy(ms.pData, OurVertices, sizeof(OurVertices));                 // copy the data
 	devcon->Unmap(pVBuffer, NULL);
 
+	ZeroMemory(&bd, sizeof(bd));
+
+	myModel = (Model *)malloc(sizeof(Model));
+	int res1 = myModel->modelInit("cube.obj");
+	if (!res1){
+		bd.Usage = D3D11_USAGE_DYNAMIC;
+		bd.ByteWidth = sizeof(VERTEX)* myModel->vertices.size();
+		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+		dev->CreateBuffer(&bd, NULL, &pModelBuffer);
+
+		devcon->Map(pModelBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
+		memcpy(ms.pData, &myModel->vertices, sizeof(myModel->vertices));
+		devcon->Unmap(pModelBuffer, NULL);
+	}
 
 	// create the index buffer out of DWORDs
 	DWORD OurIndices[] =
