@@ -30,11 +30,13 @@ ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
 ID3D11InputLayout *pLayout;				// the pointer to the input layout
 ID3D11VertexShader *pVS;				// the pointer to the vertex shader
 ID3D11PixelShader *pPS;					// the pointer to the pixel shader
+ID3D11PixelShader *pPS2;				// the pointer to the second pixel shader
 ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
 ID3D11Buffer *pIBuffer;					// the pointer to the index buffer
 ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
 IGFX::Extensions myExtensions;
 ID3D11RasterizerState* DisableCull;		// We are setting the Rasterizer state, at this point, to disable culling.
+ID3D11RasterizerState* EnableCull;		// We enable culling for our second pass.
 ID3D11BlendState* g_pBlendState;
 ID3D11UnorderedAccessView *pUAV[3];		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
@@ -378,8 +380,8 @@ void InitD3D(HWND hWnd)
 
 	D3D11_TEXTURE2D_DESC texDesc2;
 	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = 1024;
-	texDesc2.Height = 1024;
+	texDesc2.Width = 256;
+	texDesc2.Height = 256;
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
@@ -434,8 +436,23 @@ void RenderFrame(void)
 
 	const float fClear[4] = { 0., 0., 0., 0. };
 	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
-
+	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
 	static float Time = 0.0f; Time += 0.0003f;
+	
+	//Begin First Pass
+
+	devcon->VSSetShader(pVS, 0, 0);
+	devcon->PSSetShader(pPS, 0, 0);
+
+	ID3D11RenderTargetView *pNullRTView[] = { NULL };
+
+	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
+	devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
+
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(0, pNullRTView, zbuffer, 1, 3, pUAV, 0);
+
+	devcon->RSSetState(DisableCull);
 
 	// create a world matrices
 	D3DXMatrixRotationY(&matRotate, Time);
@@ -447,7 +464,7 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoRH(&matProjection, 4, 4, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(45),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
@@ -468,6 +485,8 @@ void RenderFrame(void)
 	// select which vertex buffer to display
 	UINT stride = sizeof(VERTEX);
 	UINT offset = 0;
+	
+	//Default object use 
 	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
 	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
@@ -476,7 +495,46 @@ void RenderFrame(void)
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	
+	//end of first pass.
+
+	//begin second pass.
+
+
+	D3DXMatrixLookAtLH(&matView,
+		&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
+		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+	// create a projection matrix
+	//D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
+	// create a projection matrix
+		D3DXMatrixPerspectiveFovLH(&matProjection,
+		(FLOAT)D3DXToRadian(45),                    // field of view
+		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+		1.0f,                                       // near view-plane
+		100.0f);
+	
+	// load the matrices into the constant buffer
+	cBuffer.Final = matRotate * matView * matProjection;
+	cBuffer.Rotation = matRotate;
+	cBuffer.modelView = matView;
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 3, pUAV, 0);
+
+	devcon->RSSetState(EnableCull);
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	devcon->PSSetShader(pPS2, 0, 0);
+
+	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 	devcon->DrawIndexed(36, 0, 0);
+	//devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+
+	//devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
 
 
 
@@ -501,6 +559,7 @@ void CleanD3D(void)
 	swapchain->Release();
 	RTVs[0]->Release();
 	DisableCull->Release();
+	EnableCull->Release();
 	dev->Release();
 	devcon->Release();
 }
@@ -574,7 +633,7 @@ void InitGraphics()
 		dev->CreateBuffer(&bd, NULL, &pModelBuffer);
 
 		devcon->Map(pModelBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
-		memcpy(ms.pData, &myModel->vertices, sizeof(myModel->vertices));
+		memcpy(ms.pData, &myModel->vertices[0], sizeof(bd.ByteWidth));
 		devcon->Unmap(pModelBuffer, NULL);
 	}
 
@@ -613,8 +672,13 @@ void InitGraphics()
 	wfdesc.FillMode = D3D11_FILL_SOLID;
 	wfdesc.CullMode = D3D11_CULL_NONE;
 	dev->CreateRasterizerState(&wfdesc, &DisableCull);
+	
 
-	devcon->RSSetState(DisableCull);
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_SOLID;
+	wfdesc.CullMode = D3D11_CULL_BACK;
+	dev->CreateRasterizerState(&wfdesc, &EnableCull);
+
 
 	//set the depth stencil state.
 
@@ -652,7 +716,7 @@ void InitGraphics()
 	D3D11_BLEND_DESC BlendState;
 
 	ZeroMemory(&BlendState, sizeof(D3D11_BLEND_DESC));
-	BlendState.RenderTarget[0].BlendEnable = FALSE;
+	BlendState.RenderTarget[0].BlendEnable = TRUE;
 	BlendState.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
 	BlendState.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
 	BlendState.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
@@ -671,9 +735,7 @@ void InitGraphics()
 
 	devcon->OMSetBlendState( g_pBlendState, blendfactor, sampleMask);
 
-	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(D3D11_KEEP_RENDER_TARGETS_AND_DEPTH_STENCIL, RTVs, zbuffer, 1, 3, pUAV, 0);
 
 }
 
@@ -682,7 +744,7 @@ void InitGraphics()
 void InitPipeline()
 {
 	// compile the shaders
-	ID3D10Blob *VS, *PS, *VErrors, *PErrors;
+	ID3D10Blob *VS, *PS, *VErrors, *PErrors, *PS2, *PSErrors2;
 	HRESULT Result;
 
 
@@ -706,13 +768,23 @@ void InitPipeline()
 		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "PShader2", "ps_5_0", 0, 0, 0, &PS2, &PSErrors2, 0);
+	if (Result)
+	{
+		char *buff = (char *)PSErrors2->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 	// create the shader objects
 	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
 	dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
-
+	dev->CreatePixelShader(PS2->GetBufferPointer(), PS2->GetBufferSize(), NULL, &pPS2);
 	// set the shader objects
-	devcon->VSSetShader(pVS, 0, 0);
-	devcon->PSSetShader(pPS, 0, 0);
+	
 
 	// create the input element object
 	D3D11_INPUT_ELEMENT_DESC ied[] =
