@@ -38,10 +38,11 @@ IGFX::Extensions myExtensions;
 ID3D11RasterizerState* DisableCull;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11RasterizerState* EnableCull;		// We enable culling for our second pass.
 ID3D11BlendState* g_pBlendState;
-ID3D11UnorderedAccessView *pUAV[3];		// Our application-side UAV entity.
+ID3D11UnorderedAccessView *pUAV[4];		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
 ID3D11Texture2D *pUAVDTex;
 ID3D11Texture2D *pUAVDTex2;
+ID3D11Texture2D *pUAVDTex3;
 ID3D11Texture2D *depthTex;
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *depthTexSRV;
@@ -65,6 +66,8 @@ struct CBUFFER
 	D3DXVECTOR4 LightVector;
 	D3DXCOLOR LightColor;
 	D3DXCOLOR AmbientColor;
+	D3DXVECTOR4 camera;
+	D3DXMATRIX camMat;
 };
 
 // function prototypes
@@ -263,7 +266,7 @@ void InitD3D(HWND hWnd)
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
 	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc.Format = DXGI_FORMAT_R32_UINT;
+	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
 	if (texRes != S_OK)
 	{
@@ -334,7 +337,7 @@ void InitD3D(HWND hWnd)
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
 	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
 
-	UAVdesc.Format = DXGI_FORMAT_R32_UINT;
+	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
 	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVdesc.Texture2D.MipSlice = 0;
 
@@ -347,8 +350,8 @@ void InitD3D(HWND hWnd)
 	//Add float depth stuff here.
 	D3D11_TEXTURE2D_DESC texDesc1;
 	ZeroMemory(&texDesc1, sizeof(texDesc1));
-	texDesc1.Width = SCREEN_WIDTH;
-	texDesc1.Height = SCREEN_HEIGHT;
+	texDesc1.Width = 512;
+	texDesc1.Height = 512;
 	texDesc1.MipLevels = 1;
 	texDesc1.ArraySize = 1;
 	texDesc1.SampleDesc.Count = 1;
@@ -380,15 +383,15 @@ void InitD3D(HWND hWnd)
 
 	D3D11_TEXTURE2D_DESC texDesc2;
 	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = 256;
-	texDesc2.Height = 256;
+	texDesc2.Width = 720;
+	texDesc2.Height = 720;
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
 	texDesc2.SampleDesc.Quality = 0;
 	texDesc2.Usage = D3D11_USAGE_DEFAULT;
 	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	texDesc2.Format = DXGI_FORMAT_R32_UINT;
 	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
 
 	if (texRes != S_OK)
@@ -399,11 +402,26 @@ void InitD3D(HWND hWnd)
 
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
 
-	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVDesc2.Format = DXGI_FORMAT_R32_UINT;
 	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVDesc2.Texture2D.MipSlice = 0;
 
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVdesc, &pUAV[2]);
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVDesc2, &pUAV[2]);
+
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//we skip making another texture description, since we know we want this texture to be the same, basically.
+	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex3);
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex3, &UAVDesc2, &pUAV[3]);
 
 	if (UAVRes != S_OK){
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
@@ -432,12 +450,13 @@ void RenderFrame(void)
 	D3DXMATRIX matFinal;
 
 	const UINT clear[4] = { 0, 0, 0, 0 };
-	devcon->ClearUnorderedAccessViewUint(pUAV[0], clear);
-
 	const float fClear[4] = { 0., 0., 0., 0. };
+	devcon->ClearUnorderedAccessViewFloat(pUAV[0], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
-	static float Time = 0.0f; Time += 0.0003f;
+	devcon->ClearUnorderedAccessViewUint(pUAV[2], clear);
+	devcon->ClearUnorderedAccessViewUint(pUAV[3], clear);
+
+	static float Time = 0.0f; Time += 0.0009f;
 	
 	//Begin First Pass
 
@@ -447,10 +466,10 @@ void RenderFrame(void)
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
 	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
-	devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
+	devcon->OMSetRenderTargets(1, RTVs, zbuffer);
 
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(0, pNullRTView, zbuffer, 1, 3, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 
@@ -475,6 +494,8 @@ void RenderFrame(void)
 	cBuffer.Final = matRotate * matView * matProjection;
 	cBuffer.Rotation = matRotate;
 	cBuffer.modelView = matView;
+	cBuffer.camera = D3DXVECTOR4(0.5f, .75f, .25f, 1.0f);
+	cBuffer.camMat = matView * matProjection;
 
 	// clear the back buffer to a deep blue
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
@@ -498,7 +519,9 @@ void RenderFrame(void)
 	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
 	
 	//end of first pass.
+	
 
+	
 	//begin second pass.
 
 
@@ -521,7 +544,7 @@ void RenderFrame(void)
 	cBuffer.Rotation = matRotate;
 	cBuffer.modelView = matView;
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 3, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(EnableCull);
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
@@ -531,11 +554,7 @@ void RenderFrame(void)
 
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 	devcon->DrawIndexed(36, 0, 0);
-	//devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
-
-
-	//devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
-
+	
 
 
 	// switch the back buffer and the front buffer
@@ -805,7 +824,8 @@ void InitPipeline()
 	bd.ByteWidth = sizeof(CBUFFER);
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-	dev->CreateBuffer(&bd, NULL, &pCBuffer);
+	HRESULT outcome = dev->CreateBuffer(&bd, NULL, &pCBuffer);
+	if (outcome == E_OUTOFMEMORY);
 
 	devcon->VSSetConstantBuffers(0, 1, &pCBuffer);
 }
