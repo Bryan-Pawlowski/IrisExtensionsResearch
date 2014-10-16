@@ -17,12 +17,12 @@ struct VOut
 	float4 svposition : SV_POSITION;
 	float4 color : COLOR;
 	float4 position : POSITION;
-	float2 UVs : UV;
+	float2 UVs : TEXCOORD;
 	float4 normal : NORMAL;
 	float4 camera : CAMERA;
 };
 
-VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : UV)
+VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
 	output.svposition = mul(final, position);
@@ -54,12 +54,12 @@ globallycoherent RWTexture2D<float> uvDepth				: register (u2); //keep track of 
 globallycoherent RWTexture2D<uint>  fromLightX			: register (u3); //X pixel coordinates from the light.
 globallycoherent RWTexture2D<uint>  fromLightY			: register (u4); //Y pixel coordinates from the light.
 
-float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
+float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 uv;
-	uv.x = int(720.f * UVs.x);
-	uv.y = int(720.f * UVs.y);
+	uv.x = int(512.f * UVs.x);
+	uv.y = int(512.f * UVs.y);
 
 	float pos = distance(position, camera);
 
@@ -84,26 +84,41 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	return color;
 }
 
+Texture2D<uint> texX;
+Texture2D<uint> texY;
+Texture2D<float> texDepth			: register(s2);
+SamplerState ss; //We SHOULD be able to just use a blank sample state.
+
+
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = int(720.f * UVs.x);
-	uv.y = int(720.f * UVs.y);
+	uv.x = int(512.f * UVs.x);
+	uv.y = int(512.f * UVs.y);
+
+
 	float tol = .009;
 
+	
 
 	uint2 lightCoords;
 
+	//lightCoords.x = fromLightX[uv];
+	//lightCoords.y = fromLightY[uv];
+	
 	lightCoords.x = fromLightX[uv];
 	lightCoords.y = fromLightY[uv];
 
-	float mdepth = uvDepth[uv];
+	float mdepth = texDepth.Sample(ss, UVs);
 	float shallow = Shallow[lightCoords];
 
-	if (!((shallow >= (mdepth - tol)) && (shallow <= (mdepth + tol))))
+	/*if (!((shallow >= (mdepth - tol)) && (shallow <= (mdepth + tol))))
 	{
-		color.a *= (1 - (mdepth - shallow));
+		color *= (1 - (mdepth - shallow));
+		color.a = 1;
 	}
+	*/
 
+	if (mdepth == 0) color.g = 1.0f;
 	return color;
 }

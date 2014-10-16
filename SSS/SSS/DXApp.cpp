@@ -45,7 +45,7 @@ ID3D11Texture2D *pUAVDTex2;
 ID3D11Texture2D *pUAVDTex3;
 ID3D11Texture2D *depthTex;
 ID3D11RenderTargetView *depthTexBuff;
-ID3D11ShaderResourceView *depthTexSRV;
+ID3D11ShaderResourceView *SRVs[4];
 ID3D11DepthStencilState * pDSState;
 
 
@@ -255,7 +255,7 @@ void InitD3D(HWND hWnd)
 	if (IntelResult == S_OK) myExtensions = IGFX::getAvailableExtensions(dev);	//check what we have available and store it in a global (for checks)
 
 	//create UAV texture.  If you want the texture to be a part of a UAV resource, it MUST look like this.
-
+	
 	D3D11_TEXTURE2D_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(texDesc));
 	texDesc.Width = SCREEN_WIDTH;
@@ -265,70 +265,12 @@ void InitD3D(HWND hWnd)
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
 	if (texRes != S_OK)
 	{
 		MessageBox(HWND_DESKTOP, L"Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-
-	//Here is where I set up our texture which will be written to on the first pass.
-
-	D3D11_TEXTURE2D_DESC textureDesc;
-	D3D11_RENDER_TARGET_VIEW_DESC rendertargetViewDesc;
-	D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc;
-
-	ZeroMemory(&textureDesc, sizeof(textureDesc));
-
-	textureDesc.Width = SCREEN_WIDTH;
-	textureDesc.Height = SCREEN_HEIGHT;
-	textureDesc.MipLevels = 1;
-	textureDesc.ArraySize = 1;
-	textureDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	textureDesc.SampleDesc.Count = 1;
-	textureDesc.Usage = D3D11_USAGE_DEFAULT;
-	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-	textureDesc.CPUAccessFlags = 0;
-	textureDesc.MiscFlags = 0;
-
-	//Create the depth texture
-
-	texRes = dev->CreateTexture2D(&textureDesc, NULL, &depthTex);
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	// our depth texture is technically a render target.  So, we could actually sync on the render target!  We won't, though.
-	rendertargetViewDesc.Format = textureDesc.Format;
-	rendertargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-	rendertargetViewDesc.Texture2D.MipSlice = 0;
-
-	texRes = dev->CreateRenderTargetView(depthTex, &rendertargetViewDesc, &depthTexBuff);
-	
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-	
-
-	//set up shader resource view
-	
-	shaderResourceViewDesc.Format = textureDesc.Format;
-	shaderResourceViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	shaderResourceViewDesc.Texture2D.MostDetailedMip = 0;
-	shaderResourceViewDesc.Texture2D.MipLevels = 1;
-
-	texRes = dev->CreateShaderResourceView( depthTex, &shaderResourceViewDesc, &depthTexSRV );
-
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Depth Texture Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
 
@@ -357,7 +299,7 @@ void InitD3D(HWND hWnd)
 	texDesc1.SampleDesc.Count = 1;
 	texDesc1.SampleDesc.Quality = 0;
 	texDesc1.Usage = D3D11_USAGE_DEFAULT;
-	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 	texDesc1.Format = DXGI_FORMAT_R32_FLOAT;
 	texRes = dev->CreateTexture2D(&texDesc1, NULL, &pUAVDTex);
 
@@ -383,15 +325,15 @@ void InitD3D(HWND hWnd)
 
 	D3D11_TEXTURE2D_DESC texDesc2;
 	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = 720;
-	texDesc2.Height = 720;
+	texDesc2.Width = 512;
+	texDesc2.Height = 512;
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
-	texDesc2.SampleDesc.Quality = 0;
 	texDesc2.Usage = D3D11_USAGE_DEFAULT;
-	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 	texDesc2.Format = DXGI_FORMAT_R32_UINT;
+	texDesc2.CPUAccessFlags = 0;
 	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
 
 	if (texRes != S_OK)
@@ -427,6 +369,46 @@ void InitD3D(HWND hWnd)
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
+	//this is where we create a shader resource view to tell our program to treat our depth 
+	//UAVs as textures in the second pass of our technique.
+
+	//we now create the three shader resources for the three textures. first we will work with the XY coordinate storage.
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+
+	srvDesc.Format = texDesc2.Format;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+
+	HRESULT SRVRes = dev->CreateShaderResourceView(pUAVDTex2, &srvDesc, &SRVs[0]);
+
+	if (SRVRes != S_OK) {
+		MessageBox(HWND_DESKTOP, L"Our SRV was not successful...", L"SRV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	SRVRes = dev->CreateShaderResourceView(pUAVDTex3, &srvDesc, &SRVs[1]);
+
+	if (SRVRes != S_OK) {
+		MessageBox(HWND_DESKTOP, L"Our SRV was not successful...", L"SRV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc1;
+
+	srvDesc1.Format = DXGI_FORMAT_R32_FLOAT;
+	srvDesc1.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc1.Texture2D.MipLevels = 1;
+	srvDesc1.Texture2D.MostDetailedMip = 0;
+	SRVRes = dev->CreateShaderResourceView(pUAVDTex, &srvDesc1, &SRVs[2]);
+
+	if (SRVRes != S_OK) {
+		MessageBox(HWND_DESKTOP, L"Our SRV was not successful...", L"SRV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
 
 	pBackBuffer->Release();
 
@@ -525,6 +507,8 @@ void RenderFrame(void)
 	//begin second pass.
 
 
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 1, &pUAV[0], 0);
+
 	D3DXMatrixLookAtLH(&matView,
 		&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
 		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
@@ -551,6 +535,7 @@ void RenderFrame(void)
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	devcon->PSSetShader(pPS2, 0, 0);
+	devcon->PSSetShaderResources(0, 3, SRVs);
 
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 	devcon->DrawIndexed(36, 0, 0);
@@ -810,7 +795,7 @@ void InitPipeline()
 	{
 		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "UV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 
 	HRESULT OK = dev->CreateInputLayout(ied, 3, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);

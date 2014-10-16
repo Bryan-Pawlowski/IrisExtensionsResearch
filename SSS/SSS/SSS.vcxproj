@@ -87,9 +87,9 @@
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.h" />
     <ClInclude Include="IGFXExtensions\ID3D10Extensions.h" />
     <ClInclude Include="IGFXExtensions\IGFXExtensionsHelper.h" />
+    <ClInclude Include="OBJ-Loader.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
