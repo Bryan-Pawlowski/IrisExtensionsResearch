@@ -1,5 +1,7 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
+#define TEXSIZE 600.f
+
 cbuffer ConstantBuffer
 {
 	float4x4 final;		  // the modelViewProjection matrix
@@ -49,8 +51,9 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	return output;
 }
 
-globallycoherent RWTexture2D<float> Shallow				: register (u1); //keep track of shallowest point in XY position relative to screen
-globallycoherent RWTexture2D<float> uvDepth				: register (u2); //keep track of depth of that UV coordinate.
+
+globallycoherent RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
+globallycoherent RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
 globallycoherent RWTexture2D<uint>  fromLightX			: register (u3); //X pixel coordinates from the light.
 globallycoherent RWTexture2D<uint>  fromLightY			: register (u4); //Y pixel coordinates from the light.
 
@@ -58,22 +61,21 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 uv;
-	uv.x = int(512.f * UVs.x);
-	uv.y = int(512.f * UVs.y);
+	uv.x = int(floor(TEXSIZE * UVs.x));
+	uv.y = int(floor(TEXSIZE * UVs.y));
 
 	float pos = distance(position, camera);
 
 		IntelExt_Init();
 
-		IntelExt_BeginPixelShaderOrderingOnUAV(2);
+		IntelExt_BeginPixelShaderOrderingOnUAV(0);
 		float currDepth = Shallow[pixelAddr];
 
 		//we need the depth at that UV spot on the model.
 		uvDepth[uv] = pos;
 
 		//we need the shallowest depth (one closest to the light).
-		if (currDepth == 0) currDepth = pos;
-		else if (currDepth >= pos) currDepth = pos;
+		if ((pos <= currDepth) || (currDepth == 0)) currDepth = pos;
 		
 		Shallow[pixelAddr] = currDepth;
 		
@@ -84,41 +86,36 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	return color;
 }
 
-Texture2D<uint> texX;
-Texture2D<uint> texY;
-Texture2D<float> texDepth			: register(s2);
+Texture2D<float> texDepth;
 SamplerState ss; //We SHOULD be able to just use a blank sample state.
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = int(512.f * UVs.x);
-	uv.y = int(512.f * UVs.y);
+	uv.x = int(floor(TEXSIZE * UVs.x));
+	uv.y = int(floor(TEXSIZE * UVs.y));
 
 
-	float tol = .009;
-
-	
+	float tol = .01;
 
 	uint2 lightCoords;
 
-	//lightCoords.x = fromLightX[uv];
-	//lightCoords.y = fromLightY[uv];
-	
 	lightCoords.x = fromLightX[uv];
 	lightCoords.y = fromLightY[uv];
+	
+	//lightCoords.x = fromLightX[uv];
+	//lightCoords.y = fromLightY[uv];
 
-	float mdepth = texDepth.Sample(ss, UVs);
+	float mdepth = uvDepth[uv];
 	float shallow = Shallow[lightCoords];
 
-	/*if (!((shallow >= (mdepth - tol)) && (shallow <= (mdepth + tol))))
+	if ( !((mdepth >= (shallow - tol))&&(mdepth <= (shallow + tol))))
 	{
-		color *= (1 - (mdepth - shallow));
-		color.a = 1;
+		color *= (1 - (mdepth - shallow)/5);
 	}
-	*/
+	
 
-	if (mdepth == 0) color.g = 1.0f;
+	//color.a *= mdepth/5;
 	return color;
 }

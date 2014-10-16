@@ -17,8 +17,9 @@
 
 
 // define the screen resolution
-#define SCREEN_WIDTH  800
-#define SCREEN_HEIGHT 600
+#define SCREEN_WIDTH	800
+#define SCREEN_HEIGHT	600
+#define TEXSIZE			600
 
 
 // global declarations
@@ -292,8 +293,8 @@ void InitD3D(HWND hWnd)
 	//Add float depth stuff here.
 	D3D11_TEXTURE2D_DESC texDesc1;
 	ZeroMemory(&texDesc1, sizeof(texDesc1));
-	texDesc1.Width = 512;
-	texDesc1.Height = 512;
+	texDesc1.Width = TEXSIZE;
+	texDesc1.Height = TEXSIZE;
 	texDesc1.MipLevels = 1;
 	texDesc1.ArraySize = 1;
 	texDesc1.SampleDesc.Count = 1;
@@ -325,8 +326,8 @@ void InitD3D(HWND hWnd)
 
 	D3D11_TEXTURE2D_DESC texDesc2;
 	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = 512;
-	texDesc2.Height = 512;
+	texDesc2.Width = TEXSIZE;
+	texDesc2.Height = TEXSIZE;
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
@@ -507,7 +508,9 @@ void RenderFrame(void)
 	//begin second pass.
 
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 1, &pUAV[0], 0);
+	ID3D11UnorderedAccessView *nUAV[4] = { NULL, NULL, NULL, NULL };
+
+	//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
 
 	D3DXMatrixLookAtLH(&matView,
 		&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
@@ -535,7 +538,7 @@ void RenderFrame(void)
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	devcon->PSSetShader(pPS2, 0, 0);
-	devcon->PSSetShaderResources(0, 3, SRVs);
+	//devcon->PSSetShaderResources(0, 1, &SRVs[2]);
 
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 	devcon->DrawIndexed(36, 0, 0);
