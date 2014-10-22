@@ -1,6 +1,6 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 600.f
+#define TEXSIZE 720.f
 
 
 cbuffer ConstantBuffer
@@ -11,6 +11,7 @@ cbuffer ConstantBuffer
 	float4 lightvec;      // the light's vector
 	float4 lightcol;      // the light's color
 	float4 ambientcol;    // the ambient light's color
+	float4 camera;
 }
 
 struct VOut
@@ -20,6 +21,7 @@ struct VOut
 	float4 position : POSITION;
 	float2 UVs : TEXCOORD;
 	float4 normal : NORMAL;
+	float4 camera : CAMERA;
 };
 
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
@@ -43,48 +45,43 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 
 	output.normal = norm;
 
+	output.camera = mul(modelView, camera);
+
 	return output;
 }
-RWTexture2D<uint>  pixelTouched			: register (u1);
-RWTexture2D<float> pixDepth				: register (u2);
-RWTexture2D<float> modelDepth			: register (u3);
 
-globallycoherent RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
-globallycoherent RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
-globallycoherent RWTexture2D<uint>  fromLightX			: register (u3); //X pixel coordinates from the light.
-globallycoherent RWTexture2D<uint>  fromLightY			: register (u4); //Y pixel coordinates from the light.
+RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
+RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
+RWTexture2D<uint>  fromLightX			: register (u3); //X pixel coordinates from the light.
+RWTexture2D<uint>  fromLightY			: register (u4); //Y pixel coordinates from the light.
 
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
 	uint2 pixelAddr = svposition.xy;
-	bool touched;
-	float total;
 	uint2 uv;
-	uv.x = int(floor(TEXSIZE * UVs.x));
-	uv.y = int(floor(TEXSIZE * UVs.y));
+	uv.x = int(TEXSIZE * UVs.x);
+	uv.y = int(TEXSIZE * UVs.y);
 
-	float pos = position.z;
-	float4 n = normalize(norm);
+	float pos = distance(position, camera);
+	float mdepth = pos;
 
-		IntelExt_Init();
+	fromLightX[uv] = pixelAddr.x;
+	fromLightY[uv] = pixelAddr.y;
+	uvDepth[uv] = mdepth;
 
-		IntelExt_BeginPixelShaderOrderingOnUAV(0);
-		float currDepth = Shallow[pixelAddr];
+	IntelExt_Init();
 
-		float depth = pixDepth[pixelAddr];
-		float mdepth = modelDepth[uv];
+	IntelExt_BeginPixelShaderOrderingOnUAV(2);
 
-		//we need the shallowest depth (one closest to the light).
-		if ((pos <= currDepth) || (currDepth == 0)) currDepth = pos;
+	float currDepth = Shallow[pixelAddr];
+	
+	if ((pos <= currDepth) || (currDepth == 0)) currDepth = pos;
 		
-		Shallow[pixelAddr] = currDepth;
-		
-		mdepth = position.z;
+	Shallow[pixelAddr] = currDepth;
 
-		pixDepth[pixelAddr];
-		modelDepth[uv] = mdepth;
 	return color;
 }
+
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL) : SV_TARGET
@@ -93,6 +90,8 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	uv.x = int(floor(TEXSIZE * UVs.x));
 	uv.y = int(floor(TEXSIZE * UVs.y));
 
+
+	//todo: do from-scratch sampling on mdepth.
 
 	float tol = .01;
 
@@ -104,11 +103,38 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	float mdepth = uvDepth[uv];
 	float shallow = Shallow[lightCoords];
 
-	if ( !((mdepth >= (shallow - tol))&&(mdepth <= (shallow + tol))))
+	if (mdepth == 0)
 	{
-		color *= (1 - (mdepth - shallow)/5);
+	
+		uint2 nU = uv, nD = uv, nR = uv, nL = uv, nUR = uv, nUL = uv, nDR = uv, nDL = uv;
+		float avg = 0;
+
+
+		//cardinal directions incremented/decremented.
+		nU.y++; //up
+		nD.y--; //down
+		nR.x++; //right
+		nL.x--; //left
+
+		//diagonals
+		nUR.x++;
+		nUR.y++; //upper right
+		nDR.x++;
+		nDR.y--; //lower right
+		nUL.x--;
+		nUL.y++; //upper left
+		nDL.x--;
+		nDL.y--; //lower left
+
+
+		avg = uvDepth[nU] + uvDepth[nD] + uvDepth[nR] + uvDepth[nL]
+			+ uvDepth[nUR] + uvDepth[nDR] + uvDepth[nUL] + uvDepth[nDL];
+
+		mdepth = avg / 8;
 	}
 
-	//color.a *= mdepth/5;
+	if (mdepth > shallow) color.g *= mdepth;
+
+
 	return color;
 }

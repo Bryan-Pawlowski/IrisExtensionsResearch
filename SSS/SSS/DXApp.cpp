@@ -19,7 +19,7 @@
 // define the screen resolution
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
-#define TEXSIZE			600
+#define TEXSIZE			720
 
 
 // global declarations
@@ -39,10 +39,11 @@ IGFX::Extensions myExtensions;
 ID3D11RasterizerState* DisableCull;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11RasterizerState* EnableCull;		// We enable culling for our second pass.
 ID3D11BlendState* g_pBlendState;
-ID3D11UnorderedAccessView *pUAV[3];		// Our application-side UAV entity.
+ID3D11UnorderedAccessView *pUAV[4];		// Our application-side UAV entity.
 ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored in UAV.
 ID3D11Texture2D *pUAVDTex;
 ID3D11Texture2D *pUAVDTex2;
+ID3D11Texture2D *pUAVDTex3;
 ID3D11Texture2D *depthTex;
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *SRVs[4];
@@ -57,6 +58,9 @@ Model *myModel;  //test use of my simple model class.
 ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object class, once I have that functionality.
 
 
+D3DXVECTOR4 Camera = D3DXVECTOR4(0.5f, .75f, .25f, 1.0);
+
+
 // a struct to define the constant buffer
 struct CBUFFER
 {
@@ -66,6 +70,7 @@ struct CBUFFER
 	D3DXVECTOR4 LightVector;
 	D3DXCOLOR LightColor;
 	D3DXCOLOR AmbientColor;
+	D3DXVECTOR4 Camera;
 };
 
 // function prototypes
@@ -264,7 +269,7 @@ void InitD3D(HWND hWnd)
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
 	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc.Format = DXGI_FORMAT_R32_UINT;
+	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
 
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
 	if (texRes != S_OK)
@@ -278,11 +283,11 @@ void InitD3D(HWND hWnd)
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
 	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
 
-	UAVdesc.Format = DXGI_FORMAT_R32_UINT;
+	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
 	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVdesc.Texture2D.MipSlice = 0;
 
-	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV[0]);
+	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV[1]);
 	if (UAVRes != S_OK){
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
@@ -314,7 +319,7 @@ void InitD3D(HWND hWnd)
 	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVdesc.Texture2D.MipSlice = 0;
 
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex, &UAVdesc, &pUAV[1]);
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex, &UAVdesc, &pUAV[0]);
 	if (UAVRes != S_OK){
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
@@ -331,7 +336,7 @@ void InitD3D(HWND hWnd)
 	texDesc2.SampleDesc.Count = 1;
 	texDesc2.Usage = D3D11_USAGE_DEFAULT;
 	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	texDesc2.Format = DXGI_FORMAT_R32_UINT;
 	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
 
 	if (texRes != S_OK)
@@ -342,11 +347,28 @@ void InitD3D(HWND hWnd)
 
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
 
-	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVDesc2.Format = DXGI_FORMAT_R32_UINT;
 	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVDesc2.Texture2D.MipSlice = 0;
 
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVdesc, &pUAV[2]);
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVDesc2, &pUAV[2]);
+
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//add last UAV texture here.
+
+	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex3);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex3, &UAVDesc2, &pUAV[3]);
 
 	if (UAVRes != S_OK){
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
@@ -370,6 +392,7 @@ void RenderFrame(void)
 	cBuffer.LightVector = D3DXVECTOR4(0.5f, 0.75f, 0.25f, 0.0f);
 	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
 	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.Camera = Camera;
 
 	D3DXMATRIX matRotate, matView, matProjection;
 	D3DXMATRIX matFinal;
@@ -380,7 +403,7 @@ void RenderFrame(void)
 	const float fClear[4] = { 0., 0., 0., 0. };
 	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
-	static float Time = 0.0f; Time += 0.0003f;
+	static float Time = 0.0f; Time += 0.0009f;
 	
 	//Begin First Pass
 
@@ -393,7 +416,7 @@ void RenderFrame(void)
 	devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
 
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(0, pNullRTView, zbuffer, 1, 3, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(0, pNullRTView, zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 
@@ -468,7 +491,7 @@ void RenderFrame(void)
 	cBuffer.Rotation = matRotate;
 	cBuffer.modelView = matView;
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 3, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(EnableCull);
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
