@@ -11,6 +11,7 @@
 #include <d3d11.h>
 #include <d3dx11.h>
 #include <d3dx10.h>
+#include <dinput.h>
 #include "IGFXExtensions\ID3D10Extensions.h"
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
 #include "OBJ-Loader.h"
@@ -20,6 +21,16 @@
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
 #define TEXSIZE			720
+
+
+#define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
+#define MODE_PERSP_LIGHTDEPTH			1	//two renders and show the light depth from second render.
+#define MODE_PERSP_SHOW_X				2	//two renders and show the x coordinates with respect to light.
+#define MODE_PERSP_SHOW_Y				4	//two renders and show the y coordinates with respect to light.
+#define MODE_PERSP_SHOW_X_AND_Y			6	//two renders and show the x and y coordinates with respect to light.
+#define MODE_PERSP_SHOW_ALPHA_SCALE		8	//two renders and show the scale of alpha as depth increases.
+#define MODE_PERSP_SHOW_FLAT_SCALE		16	//two renders and show just the flat colorchange without taking phone illumination into account.
+#define MODE_PERSP_SHOW_FINAL			32	//two renders and show the composite working image.
 
 
 // global declarations
@@ -58,7 +69,9 @@ Model *myModel;  //test use of my simple model class.
 ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object class, once I have that functionality.
 
 
+
 D3DXVECTOR4 Camera = D3DXVECTOR4(0.5f, .75f, .25f, 1.0);
+unsigned int displayMode = MODE_FROMLIGHT;
 
 
 // a struct to define the constant buffer
@@ -72,6 +85,17 @@ struct CBUFFER
 	D3DXCOLOR AmbientColor;
 	D3DXVECTOR4 Camera;
 };
+
+typedef struct tagKeyboard
+{
+	byte state[256];
+}keyboard_t;
+
+
+keyboard_t key;
+
+extern LPDIRECTINPUT			lpdi;		//direct input interface
+extern LPDIRECTINPUTDEVICE		lpKeyboard;
 
 // function prototypes
 void InitD3D(HWND hWnd);    // sets up and initializes Direct3D
@@ -138,6 +162,38 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 			if (msg.message == WM_QUIT)
 				break;
+			if (msg.message == WM_CHAR)
+			{
+				switch (msg.wParam)
+				{
+					case '1':
+						displayMode = MODE_FROMLIGHT;
+						break;
+					case '2':
+						displayMode = MODE_PERSP_LIGHTDEPTH;
+						break;
+					case '3':
+						displayMode = MODE_PERSP_SHOW_X;
+						break;
+					case '4':
+						displayMode = MODE_PERSP_SHOW_Y;
+						break;
+					case '5':
+						displayMode = MODE_PERSP_SHOW_X_AND_Y;
+						break;
+					case '6':
+						displayMode = MODE_PERSP_SHOW_ALPHA_SCALE;
+						break;
+					case '7':
+						displayMode = MODE_PERSP_SHOW_FLAT_SCALE;
+						break;
+					case '8':
+						displayMode = MODE_PERSP_SHOW_FINAL;
+						break;
+					default:
+						break;
+				}
+			}
 		}
 
 		RenderFrame();
@@ -167,14 +223,17 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-
 // this function initializes and prepares Direct3D for use
 void InitD3D(HWND hWnd)
 {
+	//initialize our keyboard.
+	
+	
 	// create a struct to hold information about the swap chain
 	DXGI_SWAP_CHAIN_DESC scd;
 
 	// clear out the struct for use
+
 	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
 
 	// fill the swap chain description struct

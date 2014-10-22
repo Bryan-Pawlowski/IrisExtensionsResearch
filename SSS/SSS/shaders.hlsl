@@ -87,8 +87,8 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = int(floor(TEXSIZE * UVs.x));
-	uv.y = int(floor(TEXSIZE * UVs.y));
+	uv.x = int(TEXSIZE * UVs.x);
+	uv.y = int(TEXSIZE * UVs.y);
 
 
 	//todo: do from-scratch sampling on mdepth.
@@ -105,9 +105,9 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 	if (mdepth == 0)
 	{
-	
+
 		uint2 nU = uv, nD = uv, nR = uv, nL = uv, nUR = uv, nUL = uv, nDR = uv, nDL = uv;
-		float avg = 0;
+			float avg = 0;
 
 
 		//cardinal directions incremented/decremented.
@@ -132,8 +132,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 		mdepth = avg / 8;
 	}
-
-	if (mdepth > shallow) color.g *= mdepth;
+	if (mdepth > 1.5) color.g = 1;
 
 
 	return color;
