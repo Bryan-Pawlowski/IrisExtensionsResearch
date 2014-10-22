@@ -1,6 +1,6 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 720.f
+#define TEXSIZE 128.f
 
 
 cbuffer ConstantBuffer
@@ -12,6 +12,7 @@ cbuffer ConstantBuffer
 	float4 lightcol;      // the light's color
 	float4 ambientcol;    // the ambient light's color
 	float4 camera;
+	uint samp;
 }
 
 struct VOut
@@ -22,6 +23,7 @@ struct VOut
 	float2 UVs : TEXCOORD;
 	float4 normal : NORMAL;
 	float4 camera : CAMERA;
+	uint samp : SAMPLE;
 };
 
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
@@ -47,6 +49,8 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 
 	output.camera = mul(modelView, camera);
 
+	output.samp = samp;
+
 	return output;
 }
 
@@ -71,20 +75,24 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV(2);
+	IntelExt_BeginPixelShaderOrderingOnUAV(0);
 
 	float currDepth = Shallow[pixelAddr];
 	
-	if ((pos <= currDepth) || (currDepth == 0)) currDepth = pos;
+	if ((pos < currDepth) || (currDepth == 0)) currDepth = pos;
 		
 	Shallow[pixelAddr] = currDepth;
+
+	color.g += ((mdepth - currDepth)/5);
+
+	color.a = .75f;
 
 	return color;
 }
 
 
 
-float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL) : SV_TARGET
+float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
 {
 	uint2 uv;
 	uv.x = int(TEXSIZE * UVs.x);
@@ -93,7 +101,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 	//todo: do from-scratch sampling on mdepth.
 
-	float tol = .01;
+	float tol = .005;
 
 	uint2 lightCoords;
 
@@ -103,37 +111,40 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	float mdepth = uvDepth[uv];
 	float shallow = Shallow[lightCoords];
 
-	if (mdepth == 0)
+	if (samp & 64)
 	{
 
-		uint2 nU = uv, nD = uv, nR = uv, nL = uv, nUR = uv, nUL = uv, nDR = uv, nDL = uv;
-			float avg = 0;
+			uint2 nU = uv, nD = uv, nR = uv, nL = uv, nUR = uv, nUL = uv, nDR = uv, nDL = uv;
+				float avg = 0;
 
 
-		//cardinal directions incremented/decremented.
-		nU.y++; //up
-		nD.y--; //down
-		nR.x++; //right
-		nL.x--; //left
+			//cardinal directions incremented/decremented.
+			nU.y++; //up
+			nD.y--; //down
+			nR.x++; //right
+			nL.x--; //left
 
-		//diagonals
-		nUR.x++;
-		nUR.y++; //upper right
-		nDR.x++;
-		nDR.y--; //lower right
-		nUL.x--;
-		nUL.y++; //upper left
-		nDL.x--;
-		nDL.y--; //lower left
+			//diagonals
+			nUR.x++;
+			nUR.y++; //upper right
+			nDR.x++;
+			nDR.y--; //lower right
+			nUL.x--;
+			nUL.y++; //upper left
+			nDL.x--;
+			nDL.y--; //lower left
 
 
-		avg = uvDepth[nU] + uvDepth[nD] + uvDepth[nR] + uvDepth[nL]
-			+ uvDepth[nUR] + uvDepth[nDR] + uvDepth[nUL] + uvDepth[nDL];
+			avg = uvDepth[nU] + uvDepth[nD] + uvDepth[nR] + uvDepth[nL]
+				+ uvDepth[nUR] + uvDepth[nDR] + uvDepth[nUL] + uvDepth[nDL];
 
-		mdepth = avg / 8;
+			mdepth = avg / 8;
 	}
-	if (mdepth > 1.5) color.g = 1;
 
-
-	return color;
+		
+		if ((mdepth != 0) && (shallow != 0)){
+			color *= 1 - (mdepth - shallow);
+			color.a = 1;
+		}
+		return color;
 }

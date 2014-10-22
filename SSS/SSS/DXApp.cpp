@@ -20,7 +20,7 @@
 // define the screen resolution
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
-#define TEXSIZE			720
+#define TEXSIZE			128
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -31,6 +31,8 @@
 #define MODE_PERSP_SHOW_ALPHA_SCALE		8	//two renders and show the scale of alpha as depth increases.
 #define MODE_PERSP_SHOW_FLAT_SCALE		16	//two renders and show just the flat colorchange without taking phone illumination into account.
 #define MODE_PERSP_SHOW_FINAL			32	//two renders and show the composite working image.
+#define MODE_SAMPLE						64	//custom sample on second render
+#define MODE_NO_SAMPLE					128	//no custom sample on second render
 
 
 // global declarations
@@ -71,7 +73,7 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 
 D3DXVECTOR4 Camera = D3DXVECTOR4(0.5f, .75f, .25f, 1.0);
-unsigned int displayMode = MODE_FROMLIGHT;
+unsigned int displayMode = MODE_FROMLIGHT | MODE_SAMPLE; //how to render scene, and whether or not we will use sampling.
 
 
 // a struct to define the constant buffer
@@ -84,6 +86,8 @@ struct CBUFFER
 	D3DXCOLOR LightColor;
 	D3DXCOLOR AmbientColor;
 	D3DXVECTOR4 Camera;
+	unsigned int mode;
+	unsigned int pad[3];
 };
 
 typedef struct tagKeyboard
@@ -167,29 +171,44 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				switch (msg.wParam)
 				{
 					case '1':
-						displayMode = MODE_FROMLIGHT;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_FROMLIGHT;
 						break;
 					case '2':
-						displayMode = MODE_PERSP_LIGHTDEPTH;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_LIGHTDEPTH;
 						break;
 					case '3':
-						displayMode = MODE_PERSP_SHOW_X;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_X;
 						break;
 					case '4':
-						displayMode = MODE_PERSP_SHOW_Y;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_Y;
 						break;
 					case '5':
-						displayMode = MODE_PERSP_SHOW_X_AND_Y;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_X_AND_Y;
 						break;
 					case '6':
-						displayMode = MODE_PERSP_SHOW_ALPHA_SCALE;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_ALPHA_SCALE;
 						break;
 					case '7':
-						displayMode = MODE_PERSP_SHOW_FLAT_SCALE;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_FLAT_SCALE;
 						break;
 					case '8':
-						displayMode = MODE_PERSP_SHOW_FINAL;
+						displayMode = displayMode & 0xc0;
+						displayMode = displayMode | MODE_PERSP_SHOW_FINAL;
 						break;
+					case 's':
+						displayMode = displayMode & 0x3f; //0b00111111
+						displayMode = displayMode | MODE_SAMPLE;
+						break;
+					case 'n':
+						displayMode = displayMode & 0x3f; //retain the first eight bits, but clear the last two.
+						displayMode = displayMode | MODE_NO_SAMPLE;
 					default:
 						break;
 				}
@@ -452,17 +471,20 @@ void RenderFrame(void)
 	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
 	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
 	cBuffer.Camera = Camera;
+	cBuffer.mode = displayMode;
 
 	D3DXMATRIX matRotate, matView, matProjection;
 	D3DXMATRIX matFinal;
 
 	const UINT clear[4] = { 0, 0, 0, 0 };
-	devcon->ClearUnorderedAccessViewUint(pUAV[0], clear);
 
 	const float fClear[4] = { 0., 0., 0., 0. };
+	devcon->ClearUnorderedAccessViewFloat(pUAV[0], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
-	static float Time = 0.0f; Time += 0.0009f;
+
+	devcon->ClearUnorderedAccessViewUint(pUAV[2], clear);
+	devcon->ClearUnorderedAccessViewUint(pUAV[3], clear);
+	static float Time = 0.0f; Time += 0.00036f;
 	
 	//Begin First Pass
 
@@ -472,10 +494,8 @@ void RenderFrame(void)
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
 	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
-	devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
 
-
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(0, pNullRTView, zbuffer, 1, 4, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 
@@ -523,50 +543,43 @@ void RenderFrame(void)
 	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
 	
 	//end of first pass.
-
-	//begin second pass.
-
-
-	ID3D11UnorderedAccessView *nUAV[4] = { NULL, NULL, NULL, NULL };
-
-	//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
-
-	D3DXMatrixLookAtLH(&matView,
-		&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
-		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
-		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
-
-	// create a projection matrix
-	//D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
-	// create a projection matrix
-		D3DXMatrixPerspectiveFovLH(&matProjection,
-		(FLOAT)D3DXToRadian(45),                    // field of view
-		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
-		1.0f,                                       // near view-plane
-		100.0f);
 	
-	// load the matrices into the constant buffer
-	cBuffer.Final = matRotate * matView * matProjection;
-	cBuffer.Rotation = matRotate;
-	cBuffer.modelView = matView;
+	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
+		//begin second pass.
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
+		//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
 
-	devcon->RSSetState(EnableCull);
-	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
-	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		D3DXMatrixLookAtLH(&matView,
+			&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
+			&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+			&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
-	devcon->PSSetShader(pPS2, 0, 0);
-	//devcon->PSSetShaderResources(0, 1, &SRVs[2]);
+		// create a projection matrix
+		//D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
+		// create a projection matrix
+		D3DXMatrixPerspectiveFovLH(&matProjection,
+			(FLOAT)D3DXToRadian(45),                    // field of view
+			(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+			1.0f,                                       // near view-plane
+			100.0f);
 
-	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	devcon->DrawIndexed(36, 0, 0);
-	//devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+		// load the matrices into the constant buffer
+		cBuffer.Final = matRotate * matView * matProjection;
+		cBuffer.Rotation = matRotate;
+		cBuffer.modelView = matView;
 
+		devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
-	//devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
+		devcon->RSSetState(EnableCull);
+		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
+		devcon->PSSetShader(pPS2, 0, 0);
 
+		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+		devcon->DrawIndexed(36, 0, 0);
+
+	}
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
@@ -836,6 +849,8 @@ void InitPipeline()
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
 	dev->CreateBuffer(&bd, NULL, &pCBuffer);
+
+
 
 	devcon->VSSetConstantBuffers(0, 1, &pCBuffer);
 }
