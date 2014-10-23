@@ -1,7 +1,8 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 128.f
-
+#define TEXSIZE 450.f
+#define SCREEN_WIDTH	800.f
+#define SCREEN_HEIGHT	600.f
 
 cbuffer ConstantBuffer
 {
@@ -56,8 +57,8 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 
 RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
 RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
-RWTexture2D<uint>  fromLightX			: register (u3); //X pixel coordinates from the light.
-RWTexture2D<uint>  fromLightY			: register (u4); //Y pixel coordinates from the light.
+RWTexture2D<float>  fromLightX			: register (u3); //X pixel coordinates from the light.
+RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the light.
 
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
@@ -69,8 +70,8 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	float pos = distance(position, camera);
 	float mdepth = pos;
 
-	fromLightX[uv] = pixelAddr.x;
-	fromLightY[uv] = pixelAddr.y;
+	fromLightX[uv] = (float)pixelAddr.x;
+	fromLightY[uv] = (float)pixelAddr.y;
 	uvDepth[uv] = mdepth;
 
 	IntelExt_Init();
@@ -90,26 +91,95 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	return color;
 }
 
+double bilinearFilterUVD(float2 uvs){
+	double u, v;
+
+	u = uvs.x * TEXSIZE - 0.5;
+	v = uvs.y * TEXSIZE - 0.5;
+
+
+	uint2 xy, x1y, xy1, x1y1;
+	xy.x = floor(u);
+	xy.y = floor(v);
+	x1y = xy;
+	xy1 = xy;
+	x1y1 = xy;
+	x1y.x++;
+	xy1.y++;
+	x1y1.x++;
+	x1y1.y++;
+
+
+	double u_ratio = u - xy.x;
+	double v_ratio = v - xy.y;
+	double u_opposite = 1 - u_ratio;
+	double v_opposite = 1 - v_ratio;
+
+	double result = (uvDepth[xy] * u_opposite + uvDepth[x1y] * u_ratio) * v_opposite + 
+							(uvDepth[xy1] * u_opposite + uvDepth[x1y1] * u_ratio) * v_ratio;
+
+	return result;
+
+}
+
+double bilinearFilterShallow(float2 uvs){
+	double u, v;
+
+	u = uvs.x * SCREEN_WIDTH  - 0.5;
+	v = uvs.y * SCREEN_HEIGHT - 0.5;
+
+
+	uint2 xy, x1y, xy1, x1y1;
+	xy.x = floor(u);
+	xy.y = floor(v);
+	x1y = xy;
+	xy1 = xy;
+	x1y1 = xy;
+	x1y.x++;
+	xy1.y++;
+	x1y1.x++;
+	x1y1.y++;
+
+
+	double u_ratio = u - xy.x;
+	double v_ratio = v - xy.y;
+	double u_opposite = 1 - u_ratio;
+	double v_opposite = 1 - v_ratio;
+
+	double result = (Shallow[xy] * u_opposite + Shallow[x1y] * u_ratio) * v_opposite +
+		(Shallow[xy1] * u_opposite + Shallow[x1y1] * u_ratio) * v_ratio;
+
+	return result;
+
+}
+
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = int(TEXSIZE * UVs.x);
-	uv.y = int(TEXSIZE * UVs.y);
+	uv.x = int((TEXSIZE) * UVs.x);
+	uv.y = int((TEXSIZE) * UVs.y);
+
+	//uv.x *= 4;
+	//uv.y *= 4;
 
 
 	//todo: do from-scratch sampling on mdepth.
 
 	float tol = .005;
 
-	uint2 lightCoords;
+	float2 lightCoords;
 
 	lightCoords.x = fromLightX[uv];
 	lightCoords.y = fromLightY[uv];
 
-	float mdepth = uvDepth[uv];
-	float shallow = Shallow[lightCoords];
+	float2 SUV;
+	SUV.x = lightCoords.x / SCREEN_WIDTH;
+	SUV.y = lightCoords.y / SCREEN_HEIGHT;
+
+	double mdepth = bilinearFilterUVD(UVs);
+	double shallow = bilinearFilterShallow(SUV);
 
 	if (samp & 64)
 	{
@@ -141,10 +211,9 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 			mdepth = avg / 8;
 	}
 
+		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color *= 1 - (mdepth - shallow);
 		
-		if ((mdepth != 0) && (shallow != 0)){
-			color *= 1 - (mdepth - shallow);
-			color.a = 1;
-		}
+		
 		return color;
 }
+

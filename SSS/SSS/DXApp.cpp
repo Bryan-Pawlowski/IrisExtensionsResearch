@@ -20,7 +20,7 @@
 // define the screen resolution
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
-#define TEXSIZE			128
+#define TEXSIZE			450
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -414,7 +414,7 @@ void InitD3D(HWND hWnd)
 	texDesc2.SampleDesc.Count = 1;
 	texDesc2.Usage = D3D11_USAGE_DEFAULT;
 	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc2.Format = DXGI_FORMAT_R32_UINT;
+	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
 	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
 
 	if (texRes != S_OK)
@@ -425,7 +425,7 @@ void InitD3D(HWND hWnd)
 
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
 
-	UAVDesc2.Format = DXGI_FORMAT_R32_UINT;
+	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
 	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 	UAVDesc2.Texture2D.MipSlice = 0;
 
@@ -476,15 +476,13 @@ void RenderFrame(void)
 	D3DXMATRIX matRotate, matView, matProjection;
 	D3DXMATRIX matFinal;
 
-	const UINT clear[4] = { 0, 0, 0, 0 };
-
 	const float fClear[4] = { 0., 0., 0., 0. };
 	devcon->ClearUnorderedAccessViewFloat(pUAV[0], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
 
-	devcon->ClearUnorderedAccessViewUint(pUAV[2], clear);
-	devcon->ClearUnorderedAccessViewUint(pUAV[3], clear);
-	static float Time = 0.0f; Time += 0.00036f;
+	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
+	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
+	static float Time = 0.0f; Time += 0.0001;
 	
 	//Begin First Pass
 
@@ -550,7 +548,7 @@ void RenderFrame(void)
 		//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
 
 		D3DXMatrixLookAtLH(&matView,
-			&D3DXVECTOR3(0.0f, 3.0f, 5.0f),   // the camera position
+			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
 			&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 			&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
