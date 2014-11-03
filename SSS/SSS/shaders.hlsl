@@ -1,8 +1,8 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 450.f
-#define SCREEN_WIDTH	800.f
-#define SCREEN_HEIGHT	600.f
+#define TEXSIZE 512.f
+#define SCREEN_WIDTH	1280.f
+#define SCREEN_HEIGHT	720.f
 
 cbuffer ConstantBuffer
 {
@@ -211,7 +211,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 			mdepth = avg / 8;
 	}
 
-		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color *= 1 - (mdepth - shallow);
+		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.66);
 		
 		
 		return color;

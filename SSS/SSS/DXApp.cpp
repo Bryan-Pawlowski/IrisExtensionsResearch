@@ -18,9 +18,9 @@
 
 
 // define the screen resolution
-#define SCREEN_WIDTH	800
-#define SCREEN_HEIGHT	600
-#define TEXSIZE			450
+#define SCREEN_WIDTH	1280
+#define SCREEN_HEIGHT	720
+#define TEXSIZE			512
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -72,8 +72,10 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 
 
-D3DXVECTOR4 Camera = D3DXVECTOR4(0.5f, .75f, .25f, 1.0);
+D3DXVECTOR4 Camera = D3DXVECTOR4(1.5f, 2.2f, 1.75f, 1.0);
 unsigned int displayMode = MODE_FROMLIGHT | MODE_SAMPLE; //how to render scene, and whether or not we will use sampling.
+bool rotate = true;
+
 
 
 // a struct to define the constant buffer
@@ -212,6 +214,9 @@ int WINAPI WinMain(HINSTANCE hInstance,
 					default:
 						break;
 				}
+			}
+			if (msg.message == WM_KEYDOWN){
+				if(msg.wParam == 38) rotate = !rotate;
 			}
 		}
 
@@ -467,7 +472,7 @@ void RenderFrame(void)
 {
 	CBUFFER cBuffer;
 
-	cBuffer.LightVector = D3DXVECTOR4(0.5f, 0.75f, 0.25f, 0.0f);
+	cBuffer.LightVector = Camera;
 	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
 	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
 	cBuffer.Camera = Camera;
@@ -482,7 +487,9 @@ void RenderFrame(void)
 
 	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
-	static float Time = 0.0f; Time += 0.0001;
+	static float Time = 0.0f; 
+	
+	if(rotate) Time += 0.003;
 	
 	//Begin First Pass
 
@@ -502,12 +509,12 @@ void RenderFrame(void)
 
 	// create a view matrix
 	D3DXMatrixLookAtLH(&matView,
-		&D3DXVECTOR3(0.5f, .75f, .25f),   // the camera position
+		&D3DXVECTOR3(Camera.x, Camera.y, Camera.z),   // the camera position
 		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 2.9, 3.4, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(45),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
@@ -789,7 +796,7 @@ void InitPipeline()
 	HRESULT Result;
 
 
-	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "VShader", "vs_4_0", 0, 0, 0, &VS, &VErrors, 0);
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "VShader", "vs_5_0", 0, 0, 0, &VS, &VErrors, 0);
 	if (Result)
 	{
 		char *buff = (char *)VErrors->GetBufferPointer();
