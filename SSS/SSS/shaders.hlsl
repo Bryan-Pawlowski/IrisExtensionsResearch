@@ -211,7 +211,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 			mdepth = avg / 8;
 	}
 
-		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.66);
+		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.25);
 		
 		
 		return color;

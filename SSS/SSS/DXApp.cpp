@@ -61,6 +61,7 @@ ID3D11Texture2D *depthTex;
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *SRVs[4];
 ID3D11DepthStencilState * pDSState;
+ID3D11DepthStencilState * pDefaultState;
 
 
 ID3D11RenderTargetView *RTVs[2];
@@ -72,10 +73,12 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 
 
-D3DXVECTOR4 Camera = D3DXVECTOR4(1.5f, 2.2f, 1.75f, 1.0);
+D3DXVECTOR4 Light = D3DXVECTOR4(1.5f, 2.2f, 1.75f, 1.0);
 unsigned int displayMode = MODE_FROMLIGHT | MODE_SAMPLE; //how to render scene, and whether or not we will use sampling.
 bool rotate = true;
 
+
+unsigned int cowVerts;
 
 
 // a struct to define the constant buffer
@@ -211,12 +214,33 @@ int WINAPI WinMain(HINSTANCE hInstance,
 					case 'n':
 						displayMode = displayMode & 0x3f; //retain the first eight bits, but clear the last two.
 						displayMode = displayMode | MODE_NO_SAMPLE;
+						break;
+					case ' ':
+						rotate = !rotate;
+						break;
 					default:
 						break;
 				}
 			}
 			if (msg.message == WM_KEYDOWN){
-				if(msg.wParam == 38) rotate = !rotate;
+				switch (msg.wParam)
+				{
+					case 37:			//left arrowkey pushed
+						Light.x -= .03;
+						break;
+					case 38:			//up arrow key pushed
+						Light.y += .03;
+						break;
+					case 39:			//right arrow key pushed
+						Light.x += .03;
+						break;
+					case 40:			//down arrow key pushed
+						Light.y -= .03;
+						break;
+
+					default:
+						break;
+				}
 			}
 		}
 
@@ -308,7 +332,6 @@ void InitD3D(HWND hWnd)
 
 	dsvd.Format = DXGI_FORMAT_D32_FLOAT;
 	dsvd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
-	dsvd.Texture2D.MipSlice = 5;
 
 	HRESULT res = dev->CreateDepthStencilView(pDepthBuffer, &dsvd, &zbuffer);
 	pDepthBuffer->Release();
@@ -472,10 +495,10 @@ void RenderFrame(void)
 {
 	CBUFFER cBuffer;
 
-	cBuffer.LightVector = Camera;
+	cBuffer.LightVector = Light;
 	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
 	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
-	cBuffer.Camera = Camera;
+	cBuffer.Camera = Light;
 	cBuffer.mode = displayMode;
 
 	D3DXMATRIX matRotate, matView, matProjection;
@@ -489,7 +512,7 @@ void RenderFrame(void)
 	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
 	static float Time = 0.0f; 
 	
-	if(rotate) Time += 0.003;
+	if(rotate) Time += 0.004;
 	
 	//Begin First Pass
 
@@ -503,18 +526,19 @@ void RenderFrame(void)
 	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
+	devcon->OMSetDepthStencilState(pDSState, 0);
 
 	// create a world matrices
 	D3DXMatrixRotationY(&matRotate, Time);
 
 	// create a view matrix
 	D3DXMatrixLookAtLH(&matView,
-		&D3DXVECTOR3(Camera.x, Camera.y, Camera.z),   // the camera position
+		&D3DXVECTOR3(Light.x, Light.y, Light.z),   // the camera position // - pass 1: change name of "Camera" to "Light"
 		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 2.9, 3.4, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 2.9, 3.5, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(45),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
@@ -540,13 +564,17 @@ void RenderFrame(void)
 	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
 	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
+	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	
+	//devcon->Draw(cowVerts, 0);
+
+
 	//end of first pass.
 	
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
@@ -576,6 +604,7 @@ void RenderFrame(void)
 		devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 		devcon->RSSetState(EnableCull);
+		devcon->OMSetDepthStencilState(pDefaultState, 0);
 		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
@@ -583,7 +612,7 @@ void RenderFrame(void)
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 		devcon->DrawIndexed(36, 0, 0);
-
+		//devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
@@ -614,7 +643,7 @@ void CleanD3D(void)
 
 
 // this is the function that creates the shape to render
-void InitGraphics()
+void InitGraphics(void)
 {
 	// create vertices to represent the corners of the cube
 	VERTEX OurVertices[] =
@@ -670,7 +699,7 @@ void InitGraphics()
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("cube.obj");
+	int res1 = myModel->modelInit("pawn.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -678,10 +707,12 @@ void InitGraphics()
 		bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
+		cowVerts = myModel->getSize();
+
 		dev->CreateBuffer(&bd, NULL, &pModelBuffer);
 
 		devcon->Map(pModelBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
-		memcpy(ms.pData, &myModel->vertices[0], sizeof(bd.ByteWidth));
+		memcpy(ms.pData, myModel->vertices->_Myfirst, bd.ByteWidth);
 		devcon->Unmap(pModelBuffer, NULL);
 	}
 
@@ -775,7 +806,9 @@ void InitGraphics()
 
 	dev->CreateBlendState(&BlendState, &g_pBlendState);
 
-	devcon->OMSetDepthStencilState(pDSState, 1);
+
+	devcon->OMGetDepthStencilState(&pDefaultState, 0);
+	devcon->OMSetDepthStencilState(pDSState, 0);
 
 	float blendfactor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -789,7 +822,7 @@ void InitGraphics()
 
 
 // this function loads and prepares the shaders
-void InitPipeline()
+void InitPipeline(void)
 {
 	// compile the shaders
 	ID3D10Blob *VS, *PS, *VErrors, *PErrors, *PS2, *PSErrors2;
