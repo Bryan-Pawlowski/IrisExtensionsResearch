@@ -700,7 +700,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("teapot.obj");
+	int res1 = myModel->modelInit("cow.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;

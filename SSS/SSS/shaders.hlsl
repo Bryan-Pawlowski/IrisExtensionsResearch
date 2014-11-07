@@ -76,7 +76,7 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV(2);
+	IntelExt_BeginPixelShaderOrdering();
 
 	float currDepth = Shallow[pixelAddr];
 	
@@ -86,7 +86,7 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	color.g += ((mdepth - currDepth)/5);
 
-	color.a = .75f;
+	//color.a = .75f;
 
 	return color;
 }
@@ -179,7 +179,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	double mdepth = bilinearFilterUVD(UVs);
 	double shallow = bilinearFilterShallow(SUV);
 
-		if(!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.25);
+		if((!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) && (shallow != 100.f)) color.rgb *= 1 - ((mdepth - shallow)*.25);
 		
 		
 		return color;
