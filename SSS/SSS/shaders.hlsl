@@ -1,6 +1,6 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 512.f
+#define TEXSIZE 1024.f
 #define SCREEN_WIDTH	1280.f
 #define SCREEN_HEIGHT	720.f
 
@@ -76,11 +76,11 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV(0);
+	IntelExt_BeginPixelShaderOrderingOnUAV(2);
 
 	float currDepth = Shallow[pixelAddr];
 	
-	if ((pos < currDepth) || (currDepth == 0)) currDepth = pos;
+	if (pos < currDepth) currDepth = pos;
 		
 	Shallow[pixelAddr] = currDepth;
 
@@ -161,13 +161,11 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	uv.x = int((TEXSIZE) * UVs.x);
 	uv.y = int((TEXSIZE) * UVs.y);
 
-	//uv.x *= 4;
-	//uv.y *= 4;
 
 
 	//todo: do from-scratch sampling on mdepth.
 
-	float tol = .005;
+	float tol = .05;
 
 	float2 lightCoords;
 
@@ -181,37 +179,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	double mdepth = bilinearFilterUVD(UVs);
 	double shallow = bilinearFilterShallow(SUV);
 
-	if (samp & 64)
-	{
-
-			uint2 nU = uv, nD = uv, nR = uv, nL = uv, nUR = uv, nUL = uv, nDR = uv, nDL = uv;
-				float avg = 0;
-
-
-			//cardinal directions incremented/decremented.
-			nU.y++; //up
-			nD.y--; //down
-			nR.x++; //right
-			nL.x--; //left
-
-			//diagonals
-			nUR.x++;
-			nUR.y++; //upper right
-			nDR.x++;
-			nDR.y--; //lower right
-			nUL.x--;
-			nUL.y++; //upper left
-			nDL.x--;
-			nDL.y--; //lower left
-
-
-			avg = uvDepth[nU] + uvDepth[nD] + uvDepth[nR] + uvDepth[nL]
-				+ uvDepth[nUR] + uvDepth[nDR] + uvDepth[nUL] + uvDepth[nDL];
-
-			mdepth = avg / 8;
-	}
-
-		if(!((mdepth >= (shallow - tol)) && (mdepth <= (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.25);
+		if(!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) color.rgb *= 1 - ((mdepth - shallow)*.25);
 		
 		
 		return color;

@@ -20,7 +20,7 @@
 // define the screen resolution
 #define SCREEN_WIDTH	1280
 #define SCREEN_HEIGHT	720
-#define TEXSIZE			512
+#define TEXSIZE			1024
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -504,9 +504,10 @@ void RenderFrame(void)
 	D3DXMATRIX matRotate, matView, matProjection;
 	D3DXMATRIX matFinal;
 
-	const float fClear[4] = { 0., 0., 0., 0. };
-	devcon->ClearUnorderedAccessViewFloat(pUAV[0], fClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
+	const float fClear[4] = { 0.f, 0.f, 0.f, 0.f };
+	const float dfClear[4] = { 100.f, 100.f, 100.f, 100.f };
+	devcon->ClearUnorderedAccessViewFloat(pUAV[0], dfClear);
+	devcon->ClearUnorderedAccessViewFloat(pUAV[1], dfClear);
 
 	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
 	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
@@ -526,7 +527,7 @@ void RenderFrame(void)
 	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
-	devcon->OMSetDepthStencilState(pDSState, 0);
+	devcon->OMSetDepthStencilState(pDSState, 1);
 
 	// create a world matrices
 	D3DXMatrixRotationY(&matRotate, Time);
@@ -538,10 +539,10 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 2.9, 3.5, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 6, 10, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
-		(FLOAT)D3DXToRadian(45),                    // field of view
-		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+		(FLOAT)D3DXToRadian(90),                    // field of view
+		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
 		1.0f,                                       // near view-plane
 		100.0f);                                    // far view-plane
 		*/
@@ -561,18 +562,18 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	//devcon->Draw(cowVerts, 0);
+	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
@@ -604,15 +605,15 @@ void RenderFrame(void)
 		devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
 
 		devcon->RSSetState(EnableCull);
-		devcon->OMSetDepthStencilState(pDefaultState, 0);
+		devcon->OMSetDepthStencilState(pDefaultState, 1);
 		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		devcon->DrawIndexed(36, 0, 0);
-		//devcon->Draw(cowVerts, 0);
+		//devcon->DrawIndexed(36, 0, 0);
+		devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
@@ -699,7 +700,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("pawn.obj");
+	int res1 = myModel->modelInit("teapot.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
