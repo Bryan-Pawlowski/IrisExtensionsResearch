@@ -1,6 +1,6 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 512.f
+#define TEXSIZE 128.f
 #define SCREEN_WIDTH	1920.f
 #define SCREEN_HEIGHT	1080.f
 
@@ -44,13 +44,14 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	//if (texCoord.x >= 0.5f) output.color.b = 1.0;
 	output.color += lightcol * diffusebrightness;
 
-	output.UVs = texCoord;
+	output.UVs = (double2)texCoord;
 
 	output.normal = norm;
 
 	output.camera = mul(modelView, camera);
 
 	output.samp = samp;
+
 
 	return output;
 }
@@ -64,8 +65,8 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 uv;
-	uv.x = int(TEXSIZE * UVs.x);
-	uv.y = int(TEXSIZE * UVs.y);
+	uv.x = (int)(TEXSIZE * UVs.x);
+	uv.y = (int)(TEXSIZE * UVs.y);
 
 	float pos = distance(position, camera);
 	float mdepth = pos;
@@ -85,100 +86,49 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	return color;
 }
 
-double bilinearFilterUVD(float2 uvs){
-	double u, v;
 
-	u = uvs.x * TEXSIZE - 0.5;
-	v = uvs.y * TEXSIZE - 0.5;
-
-
-	uint2 xy, x1y, xy1, x1y1;
-	xy.x = floor(u);
-	xy.y = floor(v);
-	x1y = xy;
-	xy1 = xy;
-	x1y1 = xy;
-	x1y.x++;
-	xy1.y++;
-	x1y1.x++;
-	x1y1.y++;
-
-
-	double u_ratio = u - xy.x;
-	double v_ratio = v - xy.y;
-	double u_opposite = 1 - u_ratio;
-	double v_opposite = 1 - v_ratio;
-
-	double result = (uvDepth[xy] * u_opposite + uvDepth[x1y] * u_ratio) * v_opposite + 
-							(uvDepth[xy1] * u_opposite + uvDepth[x1y1] * u_ratio) * v_ratio;
-
-	return result;
-
-}
-
-double bilinearFilterShallow(float2 uvs){
-	double u, v;
-
-	u = uvs.x * SCREEN_WIDTH  - 0.5;
-	v = uvs.y * SCREEN_HEIGHT - 0.5;
-
-
-	uint2 xy, x1y, xy1, x1y1;
-	xy.x = floor(u);
-	xy.y = floor(v);
-	x1y = xy;
-	xy1 = xy;
-	x1y1 = xy;
-	x1y.x++;
-	xy1.y++;
-	x1y1.x++;
-	x1y1.y++;
-
-
-	double u_ratio = u - xy.x;
-	double v_ratio = v - xy.y;
-	double u_opposite = 1 - u_ratio;
-	double v_opposite = 1 - v_ratio;
-
-	double result = (Shallow[xy] * u_opposite + Shallow[x1y] * u_ratio) * v_opposite +
-		(Shallow[xy1] * u_opposite + Shallow[x1y1] * u_ratio) * v_ratio;
-
-	return result;
-
-}
 
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = int((TEXSIZE) * UVs.x);
-	uv.y = int((TEXSIZE) * UVs.y);
+	uv.x = (int)((TEXSIZE) * UVs.x);
+	uv.y = (int)((TEXSIZE) * UVs.y);
 
 
+	float arc = dot(norm, camera);
+	float rad = acos(arc);
+	float deg = degrees(rad);
 
-	//todo: do from-scratch sampling on mdepth.
+	float tol = 25.05;
 
-	float tol = .05;
+	if ((deg <= 90.f - tol) && (deg >= 90.f + tol)) return color;
 
 	float2 lightCoords;
 
 	lightCoords.x = fromLightX[uv];
 	lightCoords.y = fromLightY[uv];
 
+	uint2 ilc;
+
+	ilc.x = (int)lightCoords.x;
+	ilc.y = (int)lightCoords.y;
+
+	if ((ilc.x < 0) || (ilc.y < 0)){
+		color.g = 1.f;
+		return color;
+	}
+
 	float2 SUV;
 	SUV.x = lightCoords.x / SCREEN_WIDTH;
 	SUV.y = lightCoords.y / SCREEN_HEIGHT;
 
-	double mdepth = bilinearFilterUVD(UVs);
-	double shallow = bilinearFilterShallow(SUV);
+	float mdepth = uvDepth[uv];
 
-		//if((!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) && (shallow != 100.f)) color.rgb *= 1 - ((mdepth - shallow)*.25);
-
-
+	float shallow = Shallow[ilc];
 		
-	color.rgb *= 1 - ((mdepth - shallow)*.25);
-		
+	if(((shallow != 100.f) && (mdepth != 100.f)) && (mdepth > shallow)) color.rgb *= 1 - ((mdepth - shallow)*.25);
 		return color;
 }
 
