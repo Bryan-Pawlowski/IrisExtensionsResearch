@@ -1,8 +1,8 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 1024.f
-#define SCREEN_WIDTH	1280.f
-#define SCREEN_HEIGHT	720.f
+#define TEXSIZE 512.f
+#define SCREEN_WIDTH	1920.f
+#define SCREEN_HEIGHT	1080.f
 
 cbuffer ConstantBuffer
 {
@@ -76,17 +76,11 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrdering();
+	IntelExt_BeginPixelShaderOrderingOnUAV(2);
 
-	float currDepth = Shallow[pixelAddr];
-	
-	if (pos < currDepth) currDepth = pos;
-		
-	Shallow[pixelAddr] = currDepth;
+	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
 
-	color.g += ((mdepth - currDepth)/5);
-
-	//color.a = .75f;
+	color.g += ((mdepth - Shallow[pixelAddr])/5);
 
 	return color;
 }
@@ -179,8 +173,11 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	double mdepth = bilinearFilterUVD(UVs);
 	double shallow = bilinearFilterShallow(SUV);
 
-		if((!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) && (shallow != 100.f)) color.rgb *= 1 - ((mdepth - shallow)*.25);
+		//if((!((mdepth > (shallow - tol)) && (mdepth < (shallow + tol)))) && (shallow != 100.f)) color.rgb *= 1 - ((mdepth - shallow)*.25);
+
+
 		
+	color.rgb *= 1 - ((mdepth - shallow)*.25);
 		
 		return color;
 }

@@ -18,9 +18,9 @@
 
 
 // define the screen resolution
-#define SCREEN_WIDTH	1280
-#define SCREEN_HEIGHT	720
-#define TEXSIZE			1024
+#define SCREEN_WIDTH	1920
+#define SCREEN_HEIGHT	1080
+#define TEXSIZE			512
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -539,7 +539,7 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 6, 10, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 2.9, 3.5, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(90),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
@@ -562,18 +562,18 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	devcon->Draw(cowVerts, 0);
+	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	//devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
@@ -612,8 +612,8 @@ void RenderFrame(void)
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		//devcon->DrawIndexed(36, 0, 0);
-		devcon->Draw(cowVerts, 0);
+		devcon->DrawIndexed(36, 0, 0);
+		//devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
