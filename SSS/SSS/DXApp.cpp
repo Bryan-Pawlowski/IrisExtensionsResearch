@@ -18,9 +18,9 @@
 
 
 // define the screen resolution
-#define SCREEN_WIDTH	1280
-#define SCREEN_HEIGHT	720
-#define TEXSIZE			128
+#define SCREEN_WIDTH	800
+#define SCREEN_HEIGHT	600
+#define TEXSIZE			256
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -409,7 +409,7 @@ void InitD3D(HWND hWnd)
 	texDesc1.SampleDesc.Count = 1;
 	texDesc1.SampleDesc.Quality = 0;
 	texDesc1.Usage = D3D11_USAGE_DEFAULT;
-	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
 	texDesc1.Format = DXGI_FORMAT_R32_FLOAT;
 	texRes = dev->CreateTexture2D(&texDesc1, NULL, &pUAVDTex);
 
@@ -440,6 +440,7 @@ void InitD3D(HWND hWnd)
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
+	texDesc2.SampleDesc.Quality = 0;
 	texDesc2.Usage = D3D11_USAGE_DEFAULT;
 	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
 	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
@@ -700,7 +701,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("cow.obj");
+	int res1 = myModel->modelInit("pawn.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;

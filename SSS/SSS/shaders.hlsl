@@ -1,6 +1,6 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 128.f
+#define TEXSIZE 256.f
 #define SCREEN_WIDTH	1920.f
 #define SCREEN_HEIGHT	1080.f
 
@@ -44,7 +44,8 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	//if (texCoord.x >= 0.5f) output.color.b = 1.0;
 	output.color += lightcol * diffusebrightness;
 
-	output.UVs = (double2)texCoord;
+	output.UVs.x = texCoord.x * TEXSIZE;
+	output.UVs.y = texCoord.y * TEXSIZE;
 
 	output.normal = norm;
 
@@ -65,21 +66,24 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 uv;
-	uv.x = (int)(TEXSIZE * UVs.x);
-	uv.y = (int)(TEXSIZE * UVs.y);
+	uv.x = (uint)UVs.x;
+	uv.y = (uint)UVs.y;
 
 	float pos = distance(position, camera);
-	float mdepth = pos;
+	float mdepth = distance(position, camera);
+	IntelExt_Init();
+
+	IntelExt_BeginPixelShaderOrderingOnUAV(2);
+
+
 
 	fromLightX[uv] = (float)pixelAddr.x;
 	fromLightY[uv] = (float)pixelAddr.y;
 	uvDepth[uv] = mdepth;
 
-	IntelExt_Init();
-
-	IntelExt_BeginPixelShaderOrderingOnUAV(2);
 
 	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
+
 
 	color.g += ((mdepth - Shallow[pixelAddr])/5);
 
@@ -93,8 +97,8 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
 {
 	uint2 uv;
-	uv.x = (int)((TEXSIZE) * UVs.x);
-	uv.y = (int)((TEXSIZE) * UVs.y);
+	uv.x = (uint)UVs.x;
+	uv.y = (uint)UVs.y;
 
 
 	float arc = dot(norm, camera);
@@ -115,18 +119,15 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	ilc.x = (int)lightCoords.x;
 	ilc.y = (int)lightCoords.y;
 
-	if ((ilc.x < 0) || (ilc.y < 0)){
-		color.g = 1.f;
-		return color;
+	if ((lightCoords.x == -1) && (lightCoords.y == -1)){
+		color.r = 1.0;
 	}
-
-	float2 SUV;
-	SUV.x = lightCoords.x / SCREEN_WIDTH;
-	SUV.y = lightCoords.y / SCREEN_HEIGHT;
 
 	float mdepth = uvDepth[uv];
 
 	float shallow = Shallow[ilc];
+
+	if (mdepth == 100.f) color.b = 1.0f;
 		
 	if(((shallow != 100.f) && (mdepth != 100.f)) && (mdepth > shallow)) color.rgb *= 1 - ((mdepth - shallow)*.25);
 		return color;
