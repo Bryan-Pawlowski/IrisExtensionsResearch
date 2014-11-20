@@ -1,8 +1,7 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define TEXSIZE 256.f
-#define SCREEN_WIDTH	1920.f
-#define SCREEN_HEIGHT	1080.f
+#define SCREEN_WIDTH	800.f
+#define SCREEN_HEIGHT	600.f
 
 cbuffer ConstantBuffer
 {
@@ -30,7 +29,11 @@ struct VOut
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
-	output.svposition = mul(final, position);
+	float2 movedCoords = texCoord * 2;
+		movedCoords.x -= 1;
+		movedCoords.y -= 1;
+	float4 svPos = float4(movedCoords, 0.0, 1.0);
+	output.svposition = svPos;
 	output.position = mul(final, position);
 
 
@@ -44,8 +47,42 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	//if (texCoord.x >= 0.5f) output.color.b = 1.0;
 	output.color += lightcol * diffusebrightness;
 
-	output.UVs.x = texCoord.x * TEXSIZE;
-	output.UVs.y = texCoord.y * TEXSIZE;
+	output.UVs.x = texCoord.x * SCREEN_WIDTH;
+	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
+
+	output.normal = norm;
+
+	output.camera = mul(modelView, camera);
+
+	output.samp = samp;
+
+
+	return output;
+}
+
+VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
+{
+	VOut output;
+	float2 movedCoords = texCoord * 2;
+		movedCoords.x -= 1;
+	movedCoords.y -= 1;
+	float4 svPos = float4(movedCoords, 0.0, 1.0);
+		output.svposition = svPos;
+	output.position = mul(final, position);
+
+
+	// set the ambient light
+	output.color = ambientcol;
+
+	// calculate the diffuse light and add it to the ambient light
+	float4 norm1 = normalize(mul(rotation, normal));
+		float diffusebrightness = saturate(dot(norm1, lightvec));
+	float4 norm = normalize(mul(final, normal));
+		//if (texCoord.x >= 0.5f) output.color.b = 1.0;
+		output.color += lightcol * diffusebrightness;
+
+	output.UVs.x = texCoord.x * SCREEN_WIDTH;
+	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
 
 	output.normal = norm;
 
@@ -64,41 +101,53 @@ RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the
 
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
-	uint2 pixelAddr = svposition.xy;
-	uint2 uv;
-	uv.x = (uint)UVs.x;
-	uv.y = (uint)UVs.y;
+	uint2 pixelAddr = position.xy;
+	float2 svPos = position.xy;
+	uint2 uv = UVs;
+
+	svPos += 1;
+	svPos = svPos / 2;
+
+	svPos.x = svPos.x * SCREEN_WIDTH;
+	svPos.y = svPos.y * SCREEN_HEIGHT;
+
+	//we need knowledge of the screen size, but we are making progress, here.
 
 	float pos = distance(position, camera);
 	float mdepth = distance(position, camera);
-	IntelExt_Init();
 
-	IntelExt_BeginPixelShaderOrderingOnUAV(2);
-
-
-
-	fromLightX[uv] = (float)pixelAddr.x;
-	fromLightY[uv] = (float)pixelAddr.y;
+	fromLightX[uv] = pixelAddr.x;
+	fromLightY[uv] = pixelAddr.y;
 	uvDepth[uv] = mdepth;
-
-
-	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
-
-
-	color.g += ((mdepth - Shallow[pixelAddr])/5);
 
 	return color;
 }
 
+
+float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET
+{
+	uint2 pixelAddr = svposition.xy;
+	uint2 uvs = UVs;
+
+	float pos = distance(position, camera);
+
+	IntelExt_Init();
+	IntelExt_BeginPixelShaderOrdering();
+
+	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
+
+	color.g += ((uvDepth[uvs] - Shallow[pixelAddr]) / 5);
+
+	return color;
+	
+}
 
 
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
 {
-	uint2 uv;
-	uv.x = (uint)UVs.x;
-	uv.y = (uint)UVs.y;
+	uint2 uv = UVs;
 
 
 	float arc = dot(norm, camera);

@@ -20,7 +20,6 @@
 // define the screen resolution
 #define SCREEN_WIDTH	800
 #define SCREEN_HEIGHT	600
-#define TEXSIZE			256
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -43,6 +42,7 @@ ID3D11RenderTargetView *backbuffer;		// the pointer to our back buffer
 ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
 ID3D11InputLayout *pLayout;				// the pointer to the input layout
 ID3D11VertexShader *pVS;				// the pointer to the vertex shader
+ID3D11VertexShader *pVS2;
 ID3D11PixelShader *pPS;					// the pointer to the pixel shader
 ID3D11PixelShader *pPS2;				// the pointer to the second pixel shader
 ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
@@ -402,8 +402,8 @@ void InitD3D(HWND hWnd)
 	//Add float depth stuff here.
 	D3D11_TEXTURE2D_DESC texDesc1;
 	ZeroMemory(&texDesc1, sizeof(texDesc1));
-	texDesc1.Width = TEXSIZE;
-	texDesc1.Height = TEXSIZE;
+	texDesc1.Width = SCREEN_WIDTH;
+	texDesc1.Height = SCREEN_HEIGHT;
 	texDesc1.MipLevels = 1;
 	texDesc1.ArraySize = 1;
 	texDesc1.SampleDesc.Count = 1;
@@ -435,8 +435,8 @@ void InitD3D(HWND hWnd)
 
 	D3D11_TEXTURE2D_DESC texDesc2;
 	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = TEXSIZE;
-	texDesc2.Height = TEXSIZE;
+	texDesc2.Width = SCREEN_WIDTH;
+	texDesc2.Height = SCREEN_HEIGHT;
 	texDesc2.MipLevels = 1;
 	texDesc2.ArraySize = 1;
 	texDesc2.SampleDesc.Count = 1;
@@ -525,7 +525,7 @@ void RenderFrame(void)
 
 	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 	devcon->OMSetDepthStencilState(pDSState, 1);
@@ -540,7 +540,7 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 10, 10, 0, 5);
+	D3DXMatrixOrthoLH(&matProjection, 10, 10, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 		(FLOAT)D3DXToRadian(90),                    // field of view
 		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
@@ -563,18 +563,18 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	devcon->Draw(cowVerts, 0);
+	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	//devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
@@ -613,8 +613,8 @@ void RenderFrame(void)
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		//devcon->DrawIndexed(36, 0, 0);
-		devcon->Draw(cowVerts, 0);
+		devcon->DrawIndexed(36, 0, 0);
+		//devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
@@ -632,6 +632,8 @@ void CleanD3D(void)
 	pLayout->Release();
 	pVS->Release();
 	pPS->Release();
+	pPS2->Release();
+	pVS2->Release();
 	pVBuffer->Release();
 	pIBuffer->Release();
 	pCBuffer->Release();
@@ -827,7 +829,7 @@ void InitGraphics(void)
 void InitPipeline(void)
 {
 	// compile the shaders
-	ID3D10Blob *VS, *PS, *VErrors, *PErrors, *PS2, *PSErrors2;
+	ID3D10Blob *VS, *PS, *VErrors, *PErrors, *PS2, *PSErrors2, *VS2, *VErrors2;
 	HRESULT Result;
 
 
@@ -839,6 +841,16 @@ void InitPipeline(void)
 		mbstowcs(wtext, buff, strlen(buff) + 1);
 		LPCWSTR myString = wtext;
 		MessageBox(HWND_DESKTOP, myString, L"Vertex Shader Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "VShader2", "vs_5_0", 0, 0, 0, &VS2, &VErrors2, 0);
+	if (Result)
+	{
+		char *buff = (char *)VErrors2->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Vertex Shader 2 Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
 	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "PShader", "ps_5_0", 0, 0, 0, &PS, &PErrors, 0);
@@ -864,6 +876,7 @@ void InitPipeline(void)
 	}
 	// create the shader objects
 	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
+	dev->CreateVertexShader(VS2->GetBufferPointer(), VS2->GetBufferSize(), NULL, &pVS2);
 	dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
 	dev->CreatePixelShader(PS2->GetBufferPointer(), PS2->GetBufferSize(), NULL, &pPS2);
 	// set the shader objects
