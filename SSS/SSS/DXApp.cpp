@@ -41,10 +41,14 @@ ID3D11DeviceContext *devcon;			// the pointer to our Direct3D device context
 ID3D11RenderTargetView *backbuffer;		// the pointer to our back buffer
 ID3D11DepthStencilView *zbuffer;		// the pointer to our depth buffer
 ID3D11InputLayout *pLayout;				// the pointer to the input layout
+ID3D11VertexShader *pBVS;				// the pointer to the bad vertex shader
+ID3D11PixelShader *pBPS;				// the pointer to the bad pixel shader in the first pass.
+ID3D11PixelShader *pBPS2;				// the pointer to the bad pixel shader in the second pass.
 ID3D11VertexShader *pVS;				// the pointer to the vertex shader
-ID3D11VertexShader *pVS2;
+ID3D11VertexShader *pVS2;				// the pointer to a second vertex shader
 ID3D11PixelShader *pPS;					// the pointer to the pixel shader
 ID3D11PixelShader *pPS2;				// the pointer to the second pixel shader
+ID3D11PixelShader *pPSO;
 ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
 ID3D11Buffer *pIBuffer;					// the pointer to the index buffer
 ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
@@ -76,6 +80,7 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 D3DXVECTOR4 Light = D3DXVECTOR4(1.5f, 2.2f, 1.75f, 1.0);
 unsigned int displayMode = MODE_FROMLIGHT | MODE_SAMPLE; //how to render scene, and whether or not we will use sampling.
 bool rotate = true;
+bool bRender = false;
 
 
 unsigned int cowVerts;
@@ -109,6 +114,7 @@ extern LPDIRECTINPUTDEVICE		lpKeyboard;
 // function prototypes
 void InitD3D(HWND hWnd);    // sets up and initializes Direct3D
 void RenderFrame(void);     // renders a single frame
+void BadRenderFrame(void);	// renders a single frame, but with the bad approach.
 void CleanD3D(void);        // closes Direct3D and releases memory
 void InitGraphics(void);    // creates the shape to render
 void InitPipeline(void);    // loads and prepares the shaders
@@ -171,80 +177,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 			if (msg.message == WM_QUIT)
 				break;
-			if (msg.message == WM_CHAR)
-			{
-				switch (msg.wParam)
-				{
-					case '1':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_FROMLIGHT;
-						break;
-					case '2':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_LIGHTDEPTH;
-						break;
-					case '3':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_X;
-						break;
-					case '4':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_Y;
-						break;
-					case '5':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_X_AND_Y;
-						break;
-					case '6':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_ALPHA_SCALE;
-						break;
-					case '7':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_FLAT_SCALE;
-						break;
-					case '8':
-						displayMode = displayMode & 0xc0;
-						displayMode = displayMode | MODE_PERSP_SHOW_FINAL;
-						break;
-					case 's':
-						displayMode = displayMode & 0x3f; //0b00111111
-						displayMode = displayMode | MODE_SAMPLE;
-						break;
-					case 'n':
-						displayMode = displayMode & 0x3f; //retain the first eight bits, but clear the last two.
-						displayMode = displayMode | MODE_NO_SAMPLE;
-						break;
-					case ' ':
-						rotate = !rotate;
-						break;
-					default:
-						break;
-				}
-			}
-			if (msg.message == WM_KEYDOWN){
-				switch (msg.wParam)
-				{
-					case 37:			//left arrowkey pushed
-						Light.x -= .03;
-						break;
-					case 38:			//up arrow key pushed
-						Light.y += .03;
-						break;
-					case 39:			//right arrow key pushed
-						Light.x += .03;
-						break;
-					case 40:			//down arrow key pushed
-						Light.y -= .03;
-						break;
-
-					default:
-						break;
-				}
-			}
+			
 		}
 
-		RenderFrame();
+		if(!bRender) RenderFrame();
+		else BadRenderFrame();
 	}
 
 	// clean up DirectX and COM
@@ -266,6 +203,84 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 					   PostQuitMessage(0);
 					   return 0;
 	} break;
+	case WM_CHAR:
+	{
+		switch (wParam)
+		{
+		case '1':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_FROMLIGHT;
+			break;
+		case '2':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_LIGHTDEPTH;
+			break;
+		case '3':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_X;
+			break;
+		case '4':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_Y;
+			break;
+		case '5':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_X_AND_Y;
+			break;
+		case '6':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_ALPHA_SCALE;
+			break;
+		case '7':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_FLAT_SCALE;
+			break;
+		case '8':
+			displayMode = displayMode & 0xc0;
+			displayMode = displayMode | MODE_PERSP_SHOW_FINAL;
+			break;
+		case 's':
+			displayMode = displayMode & 0x3f; //0b00111111
+			displayMode = displayMode | MODE_SAMPLE;
+			break;
+		case 'n':
+			displayMode = displayMode & 0x3f; //retain the first eight bits, but clear the last two.
+			displayMode = displayMode | MODE_NO_SAMPLE;
+			break;
+		case ' ':
+			rotate = !rotate;
+			break;
+		case 'b':
+		case 'B':
+			bRender = !bRender;
+			break;
+		default:
+			break;
+		}
+	}break;
+	case WM_KEYDOWN:
+	{
+		switch (wParam)
+		{
+		case 37:			//left arrowkey pushed
+			Light.x -= .03;
+			break;
+		case 38:			//up arrow key pushed
+			Light.y += .03;
+			break;
+		case 39:			//right arrow key pushed
+			Light.x += .03;
+			break;
+		case 40:			//down arrow key pushed
+			Light.y -= .03;
+			break;
+
+		default:
+			break;
+		}
+	} break;
+	default:
+		break;
 	}
 
 	return DefWindowProc(hWnd, message, wParam, lParam);
@@ -563,26 +578,34 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	//devcon->Draw(cowVerts, 0);
+	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
-	
+	//second pass for shallow info
+
+	devcon->VSSetShader(pVS2, 0, 0);
+	devcon->PSSetShader(pPSO, 0, 0);
+
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+
+	//devcon->DrawIndexed(36, 0, 0);
+	devcon->Draw(cowVerts, 0);
+
+
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
 		//begin second pass.
-
-		//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
 
 		D3DXMatrixLookAtLH(&matView,
 			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
@@ -613,8 +636,8 @@ void RenderFrame(void)
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		devcon->DrawIndexed(36, 0, 0);
-		//devcon->Draw(cowVerts, 0);
+		//devcon->DrawIndexed(36, 0, 0);
+		devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
@@ -634,6 +657,8 @@ void CleanD3D(void)
 	pPS->Release();
 	pPS2->Release();
 	pVS2->Release();
+	pPSO->Release();
+	pModelBuffer->Release();
 	pVBuffer->Release();
 	pIBuffer->Release();
 	pCBuffer->Release();
@@ -703,7 +728,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("pawn.obj");
+	int res1 = myModel->modelInit("stanford_bunny.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -830,6 +855,7 @@ void InitPipeline(void)
 {
 	// compile the shaders
 	ID3D10Blob *VS, *PS, *VErrors, *PErrors, *PS2, *PSErrors2, *VS2, *VErrors2;
+	ID3D10Blob *BVS, *BPS, *BPS2, *BVErrors, *BPErrors, *BPErrors2, *PSO, *PSOErrors;
 	HRESULT Result;
 
 
@@ -874,11 +900,59 @@ void InitPipeline(void)
 		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
+	Result = D3DX11CompileFromFile(L"shaders.hlsl", 0, 0, "POShader", "ps_5_0", 0, 0, 0, &PSO, &PSOErrors, 0);
+	if (Result)
+	{
+		char *buff = (char*)PSOErrors->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Ordering Shader Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	Result = D3DX11CompileFromFile(L"BadShader.hlsl", 0, 0, "VShader", "vs_5_0", 0, 0, 0, &BVS, &BVErrors, 0);
+	if (Result)
+	{
+		char *buff = (char *)BVErrors->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Vertex Shader Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	Result = D3DX11CompileFromFile(L"BadShader.hlsl", 0, 0, "PShader", "ps_5_0", 0, 0, 0, &BPS, &BPErrors, 0);
+	if (Result)
+	{
+		char *buff = (char *)BPErrors->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	Result = D3DX11CompileFromFile(L"BadShader.hlsl", 0, 0, "PShader2", "ps_5_0", 0, 0, 0, &BPS2, &BPErrors2, 0);
+	if (Result)
+	{
+		char *buff = (char *)BPErrors2->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 	// create the shader objects
 	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
 	dev->CreateVertexShader(VS2->GetBufferPointer(), VS2->GetBufferSize(), NULL, &pVS2);
 	dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
 	dev->CreatePixelShader(PS2->GetBufferPointer(), PS2->GetBufferSize(), NULL, &pPS2);
+	dev->CreateVertexShader(BVS->GetBufferPointer(), BVS->GetBufferSize(), NULL, &pBVS);
+	dev->CreatePixelShader(BPS->GetBufferPointer(), BPS->GetBufferSize(), NULL, &pBPS);
+	dev->CreatePixelShader(BPS2->GetBufferPointer(), BPS2->GetBufferSize(), NULL, &pBPS2);
+	dev->CreatePixelShader(PSO->GetBufferPointer(), PSO->GetBufferSize(), NULL, &pPSO);
 	// set the shader objects
 	
 
@@ -908,3 +982,131 @@ void InitPipeline(void)
 	devcon->VSSetConstantBuffers(0, 1, &pCBuffer);
 }
 
+void BadRenderFrame(void)
+{
+	CBUFFER cBuffer;
+
+	cBuffer.LightVector = Light;
+	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
+	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.Camera = Light;
+	cBuffer.mode = displayMode;
+
+	D3DXMATRIX matRotate, matView, matProjection;
+	D3DXMATRIX matFinal;
+
+	const float fClear[4] = { -1.f, -1.f, -1.f, -1.f };
+	const float dfClear[4] = { 100.f, 100.f, 100.f, 100.f };
+	devcon->ClearUnorderedAccessViewFloat(pUAV[0], dfClear);
+	devcon->ClearUnorderedAccessViewFloat(pUAV[1], dfClear);
+
+	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
+	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
+	static float Time = 0.0f;
+
+	if (rotate) Time += 0.004;
+
+	//Begin First Pass
+
+	devcon->VSSetShader(pBVS, 0, 0);
+	devcon->PSSetShader(pBPS, 0, 0);
+
+	ID3D11RenderTargetView *pNullRTView[] = { NULL };
+
+	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
+
+	devcon->RSSetState(DisableCull);
+	devcon->OMSetDepthStencilState(pDSState, 1);
+
+	// create a world matrices
+	D3DXMatrixRotationY(&matRotate, Time);
+
+	// create a view matrix
+	D3DXMatrixLookAtLH(&matView,
+		&D3DXVECTOR3(Light.x, Light.y, Light.z),   // the camera position // - pass 1: change name of "Camera" to "Light"
+		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+	// create a projection matrix
+	D3DXMatrixOrthoLH(&matProjection, 3.0, 3.5, 0, 1);
+	/*D3DXMatrixPerspectiveFovLH(&matProjection,
+	(FLOAT)D3DXToRadian(90),                    // field of view
+	(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
+	1.0f,                                       // near view-plane
+	100.0f);                                    // far view-plane
+	*/
+	// load the matrices into the constant buffer
+	cBuffer.Final = matRotate * matView * matProjection;
+	cBuffer.Rotation = matRotate;
+	cBuffer.modelView = matView;
+
+	// clear the back buffer to a deep blue
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+
+	// clear the depth buffer
+	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// select which vertex buffer to display
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+
+	//Default object use 
+	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+
+	// select which primtive type we are using
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// draw the Hypercraft
+	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	//devcon->Draw(cowVerts, 0);
+
+
+	//end of first pass.
+
+	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
+		//begin second pass.
+
+		//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
+
+		D3DXMatrixLookAtLH(&matView,
+			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
+			&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+			&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+		// create a projection matrix
+		//D3DXMatrixOrthoLH(&matProjection, 4, 4, 0, 1);
+		// create a projection matrix
+		D3DXMatrixPerspectiveFovLH(&matProjection,
+			(FLOAT)D3DXToRadian(45),                    // field of view
+			(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+			1.0f,                                       // near view-plane
+			100.0f);
+
+		// load the matrices into the constant buffer
+		cBuffer.Final = matRotate * matView * matProjection;
+		cBuffer.Rotation = matRotate;
+		cBuffer.modelView = matView;
+
+		devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 1, 4, pUAV, 0);
+
+		devcon->RSSetState(EnableCull);
+		devcon->OMSetDepthStencilState(pDefaultState, 1);
+		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+		devcon->PSSetShader(pBPS2, 0, 0);
+
+		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+		devcon->DrawIndexed(36, 0, 0);
+		//devcon->Draw(cowVerts, 0);
+	}
+
+	// switch the back buffer and the front buffer
+	swapchain->Present(0, 0);
+}
