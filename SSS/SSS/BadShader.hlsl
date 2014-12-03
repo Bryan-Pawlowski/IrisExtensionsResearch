@@ -27,14 +27,11 @@ struct VOut
 };
 
 
-VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
+VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
-	float2 movedCoords = texCoord * 2;
-		movedCoords.x -= 1;
-	movedCoords.y -= 1;
-	float4 svPos = float4(movedCoords, 0.0, 1.0);
-		output.svposition = svPos;
+
+	output.svposition = mul(final, position);
 	output.position = mul(final, position);
 
 
@@ -70,16 +67,7 @@ RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET
 {
 	uint2 pixelAddr = position.xy;
-	float2 svPos = position.xy;
 	uint2 uv = UVs;
-
-	svPos += 1;
-	svPos = svPos / 2;
-
-	svPos.x = svPos.x * SCREEN_WIDTH;
-	svPos.y = svPos.y * SCREEN_HEIGHT;
-
-	//we need knowledge of the screen size, but we are making progress, here.
 
 	float pos = distance(position, camera);
 	float mdepth = distance(position, camera);
@@ -88,5 +76,51 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	fromLightY[uv] = pixelAddr.y;
 	uvDepth[uv] = mdepth;
 
+	IntelExt_Init();
+
+	IntelExt_BeginPixelShaderOrdering();
+
+	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
+
+	color.g *= 1 + (pos - Shallow[pixelAddr]);
+
+	return color;
+}
+
+
+float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
+{
+	uint2 uv = UVs;
+
+
+	float arc = dot(norm, camera);
+	float rad = acos(arc);
+	float deg = degrees(rad);
+
+	float tol = 25.05;
+
+	if ((deg <= 90.f - tol) && (deg >= 90.f + tol)) return color;
+
+	float2 lightCoords;
+
+	lightCoords.x = fromLightX[uv];
+	lightCoords.y = fromLightY[uv];
+
+	uint2 ilc;
+
+	ilc.x = (int)lightCoords.x;
+	ilc.y = (int)lightCoords.y;
+
+	//if ((lightCoords.x == -1) && (lightCoords.y == -1)){
+	//	color.r = 1.0;
+	//}
+
+	float mdepth = uvDepth[uv];
+
+	float shallow = Shallow[ilc];
+
+	//if (mdepth == 100.f) color.b = 1.0f;
+
+	if (((shallow != 100.f) && (mdepth != 100.f)) && (mdepth > shallow)) color.rgb *= 1 - ((mdepth - shallow)*.25);
 	return color;
 }

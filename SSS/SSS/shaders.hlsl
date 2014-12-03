@@ -26,6 +26,13 @@ struct VOut
 	uint samp : SAMPLE;
 };
 
+
+
+RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
+RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
+RWTexture2D<float>  fromLightX			: register (u3); //X pixel coordinates from the light.
+RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the light.
+
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
@@ -63,11 +70,9 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
-	float2 movedCoords = texCoord * 2;
-		movedCoords.x -= 1;
-	movedCoords.y -= 1;
-	float4 svPos = float4(movedCoords, 0.0, 1.0);
-		output.svposition = svPos;
+	
+		
+	output.svposition = mul(final, position);
 	output.position = mul(final, position);
 
 
@@ -78,7 +83,7 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 	float4 norm1 = normalize(mul(rotation, normal));
 		float diffusebrightness = saturate(dot(norm1, lightvec));
 	float4 norm = normalize(mul(final, normal));
-		//if (texCoord.x >= 0.5f) output.color.b = 1.0;
+
 		output.color += lightcol * diffusebrightness;
 
 	output.UVs.x = texCoord.x * SCREEN_WIDTH;
@@ -94,11 +99,6 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 	return output;
 }
 
-RWTexture2D<float> uvDepth				: register (u1); //keep track of depth of that UV coordinate.
-RWTexture2D<float> Shallow				: register (u2); //keep track of shallowest point in XY position relative to screen
-RWTexture2D<float>  fromLightX			: register (u3); //X pixel coordinates from the light.
-RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the light.
-
 float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
 	uint2 pixelAddr = position.xy;
@@ -112,31 +112,33 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	svPos.y = svPos.y * SCREEN_HEIGHT;
 
 	//we need knowledge of the screen size, but we are making progress, here.
-
-	float pos = distance(position, camera);
 	float mdepth = distance(position, camera);
 
-	fromLightX[uv] = pixelAddr.x;
-	fromLightY[uv] = pixelAddr.y;
+	fromLightX[uv] = svPos.x;
+	fromLightY[uv] = svPos.y;
 	uvDepth[uv] = mdepth;
 
 	return color;
 }
 
-
 float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
 	uint2 uvs = UVs;
+	uint2 dimensions;
+
+	Shallow.GetDimensions(dimensions.x, dimensions.y);
 
 	float pos = distance(position, camera);
 
 	IntelExt_Init();
 	IntelExt_BeginPixelShaderOrdering();
 
-	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
-
-	color.g += ((uvDepth[uvs] - Shallow[pixelAddr]) / 5);
+	if (pos < Shallow[pixelAddr])
+	{
+		Shallow[pixelAddr] = pos;
+		
+	}
 
 	return color;
 	
@@ -168,7 +170,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	ilc.x = (int)lightCoords.x;
 	ilc.y = (int)lightCoords.y;
 
-	if ((lightCoords.x == -1) && (lightCoords.y == -1)){
+	if ((lightCoords.x == -1) || (lightCoords.y == -1)){
 		color.r = 1.0;
 	}
 
@@ -178,7 +180,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 	if (mdepth == 100.f) color.b = 1.0f;
 		
-	if(((shallow != 100.f) && (mdepth != 100.f)) && (mdepth > shallow)) color.rgb *= 1 - ((mdepth - shallow)*.25);
+	if(uvDepth[uv] > Shallow[ilc]) color.rgb *= 1 - (mdepth - shallow) / 5;
 		return color;
 }
 
