@@ -49,9 +49,9 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 
 	// calculate the diffuse light and add it to the ambient light
 	float4 norm1 = normalize(mul(rotation, normal));
-		float diffusebrightness = saturate(dot(norm1, lightvec));
+	float diffusebrightness = saturate(dot(norm1, lightvec));
 	float4 norm = normalize(mul(final, normal));
-	//if (texCoord.x >= 0.5f) output.color.b = 1.0;
+
 	output.color += lightcol * diffusebrightness;
 
 	output.UVs.x = texCoord.x * SCREEN_WIDTH;
@@ -103,6 +103,7 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 {
 	uint2 pixelAddr = position.xy;
 	float2 svPos = position.xy;
+	float mdepth = distance(position, camera);
 	uint2 uv = UVs;
 
 	svPos += 1;
@@ -110,9 +111,6 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 
 	svPos.x = svPos.x * SCREEN_WIDTH;
 	svPos.y = svPos.y * SCREEN_HEIGHT;
-
-	//we need knowledge of the screen size, but we are making progress, here.
-	float mdepth = distance(position, camera);
 
 	fromLightX[uv] = svPos.x;
 	fromLightY[uv] = svPos.y;

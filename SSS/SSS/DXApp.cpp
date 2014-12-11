@@ -112,17 +112,20 @@ extern LPDIRECTINPUT			lpdi;		//direct input interface
 extern LPDIRECTINPUTDEVICE		lpKeyboard;
 
 // function prototypes
-void InitD3D(HWND hWnd);    // sets up and initializes Direct3D
-void RenderFrame(void);     // renders a single frame
-void BadRenderFrame(void);	// renders a single frame, but with the bad approach.
-void CleanD3D(void);        // closes Direct3D and releases memory
-void InitGraphics(void);    // creates the shape to render
-void InitPipeline(void);    // loads and prepares the shaders
+void InitD3D(HWND hWnd);			// sets up and initializes Direct3D
+void RenderFrame(void);				// renders a single frame, basic with just a quick depth-based shadow on the object.
+void BadRenderFrame(void);			// renders a single frame, but with the bad approach.
+void CleanD3D(void);				// closes Direct3D and releases memory
+void InitGraphics(void);			// creates the shape to render
+void InitPipeline(void);			// loads and prepares the shaders
+void PhongRender(void);				// set up render for phong lighting
+void RefractRender(void);			// set up render for refraction. This will support both original and new refraction.
+void InitializeUAVs(void);			// UAVs get their own initializer now. There was too much to keep track of in the InitD3D() function.
+void SingleBounceRTRender(void);	// render call for the single bounce ray trace.
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-
+LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 // the entry point for any Windows program
 int WINAPI WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
@@ -130,7 +133,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	int nCmdShow)
 {
 	HWND hWnd;
-	WNDCLASSEX wc;
+	HWND hMenu;
+	WNDCLASSEX wc, menuWc;
 
 	ZeroMemory(&wc, sizeof(WNDCLASSEX));
 
@@ -141,14 +145,22 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wc.lpszClassName = L"WindowClass";
 
-	RegisterClassEx(&wc);
+	if (!RegisterClassEx(&wc))
+	{
+		int nResult = GetLastError();
+		MessageBox(NULL,
+			L"DirectX window class creation failed\r\n",
+			L"Window Class Failed",
+			MB_ICONERROR);
+		exit(EXIT_FAILURE);
+	}
 
 	RECT wr = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
 	hWnd = CreateWindowEx(NULL,
 		L"WindowClass",
-		L"Pawlowski Subsurface Scattering Model",
+		L"Pawlowski Pixel Ordering Research",
 		WS_OVERLAPPEDWINDOW,
 		300,
 		300,
@@ -160,6 +172,61 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		NULL);
 
 	ShowWindow(hWnd, nCmdShow);
+
+
+
+
+	ZeroMemory(&menuWc, sizeof(WNDCLASSEX));
+
+	menuWc.cbClsExtra = NULL;
+	menuWc.cbSize = sizeof(WNDCLASSEX);
+	menuWc.cbWndExtra = NULL;
+	menuWc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+	menuWc.hCursor = LoadCursor(NULL, IDC_ARROW);
+	menuWc.hIcon = NULL;
+	menuWc.hIconSm = NULL;
+	menuWc.hInstance = hInstance;
+	menuWc.lpfnWndProc = (WNDPROC)MenuProc;
+	menuWc.lpszClassName = L"MenuClass";
+	menuWc.lpszMenuName = NULL;
+	menuWc.style = CS_HREDRAW | CS_VREDRAW;
+
+	if (!RegisterClassEx(&menuWc))
+	{
+		int nResult = GetLastError();
+		MessageBox(NULL,
+			L"Window class creation failed\r\n",
+			L"Window Class Failed",
+			MB_ICONERROR);
+		exit(EXIT_FAILURE);
+	}
+
+	hMenu = CreateWindowEx(NULL,
+		L"MenuClass",
+		L"Mode Select",
+		WS_OVERLAPPEDWINDOW,
+		200,
+		200,
+		640,
+		480,
+		NULL,
+		NULL,
+		hInstance,
+		NULL);
+
+
+	if (!hMenu)
+	{
+		int nResult = GetLastError();
+
+		MessageBox(NULL,
+			L"Window creation failed\r\n",
+			L"Window Creation Failed",
+			MB_ICONERROR);
+		exit(EXIT_SUCCESS);
+	}
+
+	ShowWindow(hMenu, nCmdShow);
 
 	// set up and initialize Direct3D
 	InitD3D(hWnd);
@@ -191,8 +258,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	return msg.wParam;
 }
-
-
 // this is the main message handler for the program
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -285,8 +350,22 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
-
 // this function initializes and prepares Direct3D for use
+
+LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_DESTROY:
+	{
+					   PostQuitMessage(0);
+					   return 0;
+	} break;
+	default:
+		break;
+	}
+	return DefWindowProc(hWnd, message, wParam, lParam);
+}
 void InitD3D(HWND hWnd)
 {
 	//initialize our keyboard.
@@ -375,127 +454,10 @@ void InitD3D(HWND hWnd)
 
 	devcon->RSSetViewports(1, &viewport);
 
+	InitializeUAVs();
+
 	HRESULT	IntelResult = IGFX::Init(dev);										//initialize our Iris Extensions
 	if (IntelResult == S_OK) myExtensions = IGFX::getAvailableExtensions(dev);	//check what we have available and store it in a global (for checks)
-
-	//create UAV texture.  If you want the texture to be a part of a UAV resource, it MUST look like this.
-	
-	D3D11_TEXTURE2D_DESC texDesc;
-	ZeroMemory(&texDesc, sizeof(texDesc));
-	texDesc.Width = SCREEN_WIDTH;
-	texDesc.Height = SCREEN_HEIGHT;
-	texDesc.MipLevels = 1;
-	texDesc.ArraySize = 1;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
-
-	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	//create UAV for the pixel shaders to use
-
-	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
-	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
-
-	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
-	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	UAVdesc.Texture2D.MipSlice = 0;
-
-	HRESULT UAVRes = dev->CreateUnorderedAccessView( pUAVTex, &UAVdesc, &pUAV[1]);
-	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	//Add float depth stuff here.
-	D3D11_TEXTURE2D_DESC texDesc1;
-	ZeroMemory(&texDesc1, sizeof(texDesc1));
-	texDesc1.Width = SCREEN_WIDTH;
-	texDesc1.Height = SCREEN_HEIGHT;
-	texDesc1.MipLevels = 1;
-	texDesc1.ArraySize = 1;
-	texDesc1.SampleDesc.Count = 1;
-	texDesc1.SampleDesc.Quality = 0;
-	texDesc1.Usage = D3D11_USAGE_DEFAULT;
-	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc1.Format = DXGI_FORMAT_R32_FLOAT;
-	texRes = dev->CreateTexture2D(&texDesc1, NULL, &pUAVDTex);
-
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
-
-	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
-	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	UAVdesc.Texture2D.MipSlice = 0;
-
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex, &UAVdesc, &pUAV[0]);
-	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	//Add in-object float depth stuff here.
-
-	D3D11_TEXTURE2D_DESC texDesc2;
-	ZeroMemory(&texDesc2, sizeof(texDesc2));
-	texDesc2.Width = SCREEN_WIDTH;
-	texDesc2.Height = SCREEN_HEIGHT;
-	texDesc2.MipLevels = 1;
-	texDesc2.ArraySize = 1;
-	texDesc2.SampleDesc.Count = 1;
-	texDesc2.SampleDesc.Quality = 0;
-	texDesc2.Usage = D3D11_USAGE_DEFAULT;
-	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
-	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
-
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
-
-	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
-	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	UAVDesc2.Texture2D.MipSlice = 0;
-
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVDesc2, &pUAV[2]);
-
-	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	//add last UAV texture here.
-
-	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex3);
-
-	if (texRes != S_OK)
-	{
-		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-
-	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex3, &UAVDesc2, &pUAV[3]);
-
-	if (UAVRes != S_OK){
-		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
 
 	pBackBuffer->Release();
 
@@ -504,8 +466,6 @@ void InitD3D(HWND hWnd)
 	InitPipeline();
 	InitGraphics();
 }
-
-
 // this is the function used to render a single frame
 void RenderFrame(void)
 {
@@ -578,18 +538,18 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	devcon->Draw(cowVerts, 0);
+	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	//devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
@@ -600,8 +560,8 @@ void RenderFrame(void)
 
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 
-	//devcon->DrawIndexed(36, 0, 0);
-	devcon->Draw(cowVerts, 0);
+	devcon->DrawIndexed(36, 0, 0);
+	//devcon->Draw(cowVerts, 0);
 
 
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
@@ -636,15 +596,13 @@ void RenderFrame(void)
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		//devcon->DrawIndexed(36, 0, 0);
-		devcon->Draw(cowVerts, 0);
+		devcon->DrawIndexed(36, 0, 0);
+		//devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
 }
-
-
 // this is the function that cleans up Direct3D and COM
 void CleanD3D(void)
 {
@@ -669,8 +627,6 @@ void CleanD3D(void)
 	dev->Release();
 	devcon->Release();
 }
-
-
 // this is the function that creates the shape to render
 void InitGraphics(void)
 {
@@ -728,7 +684,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("stanford_bunny.obj");
+	int res1 = myModel->modelInit("pawn.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -848,8 +804,6 @@ void InitGraphics(void)
 
 
 }
-
-
 // this function loads and prepares the shaders
 void InitPipeline(void)
 {
@@ -1030,7 +984,7 @@ void BadRenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 3.0, 3.5, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 3.4, 3.0, 0, 1);
 	/*D3DXMatrixPerspectiveFovLH(&matProjection,
 	(FLOAT)D3DXToRadian(90),                    // field of view
 	(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
@@ -1109,4 +1063,126 @@ void BadRenderFrame(void)
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
+}
+
+void InitializeUAVs(void)
+{
+	//create UAV texture.  If you want the texture to be a part of a UAV resource, it MUST look like this.
+
+	D3D11_TEXTURE2D_DESC texDesc;
+	ZeroMemory(&texDesc, sizeof(texDesc));
+	texDesc.Width = SCREEN_WIDTH;
+	texDesc.Height = SCREEN_HEIGHT;
+	texDesc.MipLevels = 1;
+	texDesc.ArraySize = 1;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Usage = D3D11_USAGE_DEFAULT;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
+
+	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//create UAV for the pixel shaders to use
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
+	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
+
+	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAVdesc.Texture2D.MipSlice = 0;
+
+	HRESULT UAVRes = dev->CreateUnorderedAccessView(pUAVTex, &UAVdesc, &pUAV[1]);
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//Add float depth stuff here.
+	D3D11_TEXTURE2D_DESC texDesc1;
+	ZeroMemory(&texDesc1, sizeof(texDesc1));
+	texDesc1.Width = SCREEN_WIDTH;
+	texDesc1.Height = SCREEN_HEIGHT;
+	texDesc1.MipLevels = 1;
+	texDesc1.ArraySize = 1;
+	texDesc1.SampleDesc.Count = 1;
+	texDesc1.SampleDesc.Quality = 0;
+	texDesc1.Usage = D3D11_USAGE_DEFAULT;
+	texDesc1.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc1.Format = DXGI_FORMAT_R32_FLOAT;
+	texRes = dev->CreateTexture2D(&texDesc1, NULL, &pUAVDTex);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
+
+	UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAVdesc.Texture2D.MipSlice = 0;
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex, &UAVdesc, &pUAV[0]);
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//Add in-object float depth stuff here.
+
+	D3D11_TEXTURE2D_DESC texDesc2;
+	ZeroMemory(&texDesc2, sizeof(texDesc2));
+	texDesc2.Width = SCREEN_WIDTH;
+	texDesc2.Height = SCREEN_HEIGHT;
+	texDesc2.MipLevels = 1;
+	texDesc2.ArraySize = 1;
+	texDesc2.SampleDesc.Count = 1;
+	texDesc2.SampleDesc.Quality = 0;
+	texDesc2.Usage = D3D11_USAGE_DEFAULT;
+	texDesc2.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex2);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVDesc2;
+
+	UAVDesc2.Format = DXGI_FORMAT_R32_FLOAT;
+	UAVDesc2.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	UAVDesc2.Texture2D.MipSlice = 0;
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex2, &UAVDesc2, &pUAV[2]);
+
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	//add last UAV texture here.
+
+	texRes = dev->CreateTexture2D(&texDesc2, NULL, &pUAVDTex3);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	UAVRes = dev->CreateUnorderedAccessView(pUAVDTex3, &UAVDesc2, &pUAV[3]);
+
+	if (UAVRes != S_OK){
+		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 }
