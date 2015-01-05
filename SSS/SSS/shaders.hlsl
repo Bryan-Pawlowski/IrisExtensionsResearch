@@ -1,7 +1,12 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define SCREEN_WIDTH	800.f
-#define SCREEN_HEIGHT	600.f
+#define SCREEN_WIDTH	1920.f
+#define SCREEN_HEIGHT	1080.f
+
+#define PIXSYNC_OFF		1024
+#define INVERT			1
+
+#define SHININESS		1.0
 
 cbuffer ConstantBuffer
 {
@@ -11,19 +16,23 @@ cbuffer ConstantBuffer
 	float4 lightvec;      // the light's vector
 	float4 lightcol;      // the light's color
 	float4 ambientcol;    // the ambient light's color
-	float4 camera;
-	uint samp;
+	float4 lightPos;
+	uint mode;
 }
 
 struct VOut
 {
 	float4 svposition : SV_POSITION;
 	float4 color : COLOR;
-	float4 position : POSITION;
+	float4 position : POSITIONT;
 	float2 UVs : TEXCOORD;
 	float4 normal : NORMAL;
 	float4 camera : CAMERA;
-	uint samp : SAMPLE;
+	float3 lightVec : NORMAL1;
+	float4 lightCol : COLOR1;
+	uint mode : MODE;
+	float4 rotNorm : NORMAL2;
+	float3 eyeVec : NORMAL3;
 };
 
 
@@ -36,6 +45,8 @@ RWTexture2D<float>  fromLightY			: register (u4); //Y pixel coordinates from the
 VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord : TEXCOORD)
 {
 	VOut output;
+	float4 ECposition = mul(modelView, position);
+
 	float2 movedCoords = texCoord * 2;
 		movedCoords.x -= 1;
 		movedCoords.y -= 1;
@@ -52,16 +63,16 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	float diffusebrightness = saturate(dot(norm1, lightvec));
 	float4 norm = normalize(mul(final, normal));
 
-	output.color += lightcol * diffusebrightness;
+	//output.color += lightcol * diffusebrightness;
 
 	output.UVs.x = texCoord.x * SCREEN_WIDTH;
 	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
 
 	output.normal = norm;
 
-	output.camera = mul(modelView, camera);
+	output.camera = lightPos;
 
-	output.samp = samp;
+	output.mode = mode;
 
 
 	return output;
@@ -73,9 +84,16 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 	
 		
 	output.svposition = mul(final, position);
-	output.position = mul(final, position);
+	output.position = mul(modelView, position);
 
+	float4 ECposition = mul(modelView, position);
+		float3 eyeLightPosition = lightPos.xyz;
 
+		float3 lightVec = eyeLightPosition - ECposition.xyz;
+		float3 eyeVec = float3(0, 0, 0) - ECposition.xyz;
+
+		output.lightVec = normalize(lightVec);
+	output.eyeVec = normalize(eyeVec);
 	// set the ambient light
 	output.color = ambientcol;
 
@@ -84,28 +102,35 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 		float diffusebrightness = saturate(dot(norm1, lightvec));
 	float4 norm = normalize(mul(final, normal));
 
-		output.color += lightcol * diffusebrightness;
+	//output.color += lightcol * diffusebrightness;
+
+	output.lightCol = lightcol;
+
+	output.lightVec = lightvec;
 
 	output.UVs.x = texCoord.x * SCREEN_WIDTH;
 	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
 
-	output.normal = norm;
+	output.normal = normal;
 
-	output.camera = mul(modelView, camera);
+	output.camera = lightPos;
 
-	output.samp = samp;
+	output.mode = mode;
+
+	output.rotNorm = norm1;
 
 
 	return output;
 }
 
-float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
+float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA, uint mode : MODE) : SV_TARGET 
 {
 	uint2 pixelAddr = position.xy;
 	float2 svPos = position.xy;
 	float mdepth = distance(position, camera);
 	uint2 uv = UVs;
 
+	svPos = 0 - svPos;
 	svPos += 1;
 	svPos = svPos / 2;
 
@@ -119,13 +144,9 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	return color;
 }
 
-float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET
+float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET
 {
 	uint2 pixelAddr = svposition.xy;
-	uint2 uvs = UVs;
-	uint2 dimensions;
-
-	Shallow.GetDimensions(dimensions.x, dimensions.y);
 
 	float pos = distance(position, camera);
 
@@ -135,7 +156,6 @@ float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	if (pos < Shallow[pixelAddr])
 	{
 		Shallow[pixelAddr] = pos;
-		
 	}
 
 	return color;
@@ -145,40 +165,60 @@ float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 
 
-float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITION, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA, uint samp : SAMPLE) : SV_TARGET
+float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA,
+	float3 lightVec : NORMAL1, float4 lightCol : COLOR1, uint mode : MODE, float4 rotNorm : NORMAL2, float3 eyeVec : NORMAL3) : SV_TARGET
 {
 	uint2 uv = UVs;
 
-
-	float arc = dot(norm, camera);
-	float rad = acos(arc);
-	float deg = degrees(rad);
-
-	float tol = 25.05;
-
-	if ((deg <= 90.f - tol) && (deg >= 90.f + tol)) return color;
-
-	float2 lightCoords;
+	
+	uint2 lightCoords;
 
 	lightCoords.x = fromLightX[uv];
 	lightCoords.y = fromLightY[uv];
 
-	uint2 ilc;
+	// Phong Stuff
+	float3 Normal;
+	float3 Light;
+	float3 Eye;
 
-	ilc.x = (int)lightCoords.x;
-	ilc.y = (int)lightCoords.y;
+	Normal = normalize(rotNorm);
+	Light = normalize(lightVec);
+	Eye = normalize(eyeVec);
 
-	if ((lightCoords.x == -1) || (lightCoords.y == -1)){
-		color.r = 1.0;
+	//set ambient
+	float4 ambient = color * .9;
+
+	//set diffuse
+		float d = max(dot(Normal, Light), 0);
+	float4 diffuse = 5 * d * color;
+
+		//set specular (if any)
+
+		float s = 0.;
+
+	if (dot(Normal, Light) > 0)
+	{
+		float3 ref = normalize(2. * Normal * dot(Normal, Light) - Light);
+			s = pow(max(dot(Eye, ref), 0), 700);
+	}
+	float4 specular = .5 * s * lightCol;
+
+
+		color = float4(ambient.rgb + diffuse.rgb + specular.rgb, 1.);
+
+	float diffusebrightness = saturate(dot(rotNorm, lightVec));
+
+	//color += lightCol * diffusebrightness;
+
+	if (lightCol.x == 0){
+		color.b = 1.0;
 	}
 
 	float mdepth = uvDepth[uv];
 
-	float shallow = Shallow[ilc];
+	float shallow = Shallow[lightCoords];
 
-	if (mdepth == 100.f) color.b = 1.0f;
-		
-	if(uvDepth[uv] > Shallow[ilc]) color.rgb *= 1 - (mdepth - shallow) / 5;
+	if( (mode & PIXSYNC_OFF) && (uvDepth[uv] > Shallow[lightCoords])) color.rgb *= ( 1 - (mdepth - shallow) / 6);
 		return color;
 }
 

@@ -1,0 +1,24 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Background}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{What is Iris Pro?}{section.2}% 3
+\BOOKMARK [3][-]{subsubsection.2.1.1}{Shared Memory}{subsection.2.1}% 4
+\BOOKMARK [3][-]{subsubsection.2.1.2}{Pixel Synchronization}{subsection.2.1}% 5
+\BOOKMARK [2][-]{subsection.2.2}{The Graphics Pipeline}{section.2}% 6
+\BOOKMARK [3][-]{subsubsection.2.2.1}{The Vertex Shader}{subsection.2.2}% 7
+\BOOKMARK [3][-]{subsubsection.2.2.2}{The Pixel/Fragment Shader}{subsection.2.2}% 8
+\BOOKMARK [2][-]{subsection.2.3}{Parallel Programming}{section.2}% 9
+\BOOKMARK [3][-]{subsubsection.2.3.1}{Shared Resources}{subsection.2.3}% 10
+\BOOKMARK [3][-]{subsubsection.2.3.2}{Synchronization and Barriers}{subsection.2.3}% 11
+\BOOKMARK [2][-]{subsection.2.4}{The Iris Connection}{section.2}% 12
+\BOOKMARK [2][-]{subsection.2.5}{Rationale}{section.2}% 13
+\BOOKMARK [1][-]{section.3}{Subsurface Scattering}{}% 14
+\BOOKMARK [2][-]{subsection.3.1}{Previous Implementations}{section.3}% 15
+\BOOKMARK [3][-]{subsubsection.3.1.1}{Wrapping Approximation}{subsection.3.1}% 16
+\BOOKMARK [3][-]{subsubsection.3.1.2}{Depth Mapping}{subsection.3.1}% 17
+\BOOKMARK [3][-]{subsubsection.3.1.3}{Texture-Space Diffusion}{subsection.3.1}% 18
+\BOOKMARK [2][-]{subsection.3.2}{Adding Iris Extensions}{section.3}% 19
+\BOOKMARK [1][-]{section.4}{Refraction}{}% 20
+\BOOKMARK [2][-]{subsection.4.1}{"Fake" Convex Object Refraction}{section.4}% 21
+\BOOKMARK [2][-]{subsection.4.2}{Better Convex Refraction With Iris}{section.4}% 22
+\BOOKMARK [1][-]{section.5}{Single-Bounce Raytrace/Hit-Detection}{}% 23
+\BOOKMARK [1][-]{section.6}{Conclusions and Future Work}{}% 24

@@ -15,11 +15,13 @@
 #include "IGFXExtensions\ID3D10Extensions.h"
 #include "IGFXExtensions\IGFXExtensionsHelper.h"
 #include "OBJ-Loader.h"
+#include <vector>
+#include <XNAMath.h>
 
 
 // define the screen resolution
-#define SCREEN_WIDTH	800
-#define SCREEN_HEIGHT	600
+#define SCREEN_WIDTH	1920
+#define SCREEN_HEIGHT	1080
 
 
 #define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
@@ -32,7 +34,32 @@
 #define MODE_PERSP_SHOW_FINAL			32	//two renders and show the composite working image.
 #define MODE_SAMPLE						64	//custom sample on second render
 #define MODE_NO_SAMPLE					128	//no custom sample on second render
+#define PHONG_RENDER					256
+#define	DIFFUSE_RENDER					512
+#define PIXSYNC_OFF						1024
 
+#define PAUSE_BUTTON					101	//Pause button identifier
+#define GOODBAD_BUTTON					102 //Good/bad render button identifier
+#define FLAT_BUTTON						103 //Checkbox for Showing flat illumination model (default).
+#define PHONG_BUTTON					104 //Checkbox for showing phong illumination model.
+#define REFRACT_BUTTON					105 //Checkbox for showing the refraction demo.
+#define SINGLEBOUNCE_BUTTON				106 //Checkbox for showing the simple raytrace.
+#define PIXELORDERTOGGLE_BUTTON			107 //Checkbox to toggle pixel ordering.
+#define AMB_TRACKBAR					108 //trackbar for phong ambient lighting
+
+
+HWND hPauseButton;
+HWND hGBButton;
+HWND hFlatButton;
+HWND hPhongButton;
+HWND hRefractButton;
+HWND hRTButton;
+HWND hPixOrderToggle;
+HWND *currButton;
+HWND hKAmb;
+HWND hKDiff;
+HWND hKSpec;
+HWND hShiny;
 
 // global declarations
 IDXGISwapChain *swapchain;				// the pointer to the swap chain interface
@@ -52,6 +79,7 @@ ID3D11PixelShader *pPSO;
 ID3D11Buffer *pVBuffer;					// the pointer to the vertex buffer
 ID3D11Buffer *pIBuffer;					// the pointer to the index buffer
 ID3D11Buffer *pCBuffer;					// the pointer to the constant buffer
+ID3D11Buffer *pPhongCBuffer;			// constant buffer for the phong model
 IGFX::Extensions myExtensions;
 ID3D11RasterizerState* DisableCull;		// We are setting the Rasterizer state, at this point, to disable culling.
 ID3D11RasterizerState* EnableCull;		// We enable culling for our second pass.
@@ -67,6 +95,20 @@ ID3D11ShaderResourceView *SRVs[4];
 ID3D11DepthStencilState * pDSState;
 ID3D11DepthStencilState * pDefaultState;
 
+/*Following code for the skybox*/
+
+ID3D11Buffer *sphereIndexBuffer;
+ID3D11Buffer *sphereVertBuffer;
+
+ID3D11VertexShader *SKYMAP_VS;
+ID3D11PixelShader *SKYMAP_PS;
+ID3D10Blob *SKYMAP_VS_BUFFER;
+ID3D10Blob *SKYMAP_PS_BUFFER;
+
+int NumSphereVertices;
+int NumSphereFaces;
+
+/*End globals and prototypes for skybox*/
 
 ID3D11RenderTargetView *RTVs[2];
 
@@ -77,8 +119,11 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 
 
+
+
 D3DXVECTOR4 Light = D3DXVECTOR4(1.5f, 2.2f, 1.75f, 1.0);
-unsigned int displayMode = MODE_FROMLIGHT | MODE_SAMPLE; //how to render scene, and whether or not we will use sampling.
+unsigned int displayMode = MODE_PERSP_SHOW_FLAT_SCALE; //how to render scene, and whether or not we will use sampling.
+unsigned int illuminationMode = DIFFUSE_RENDER;
 bool rotate = true;
 bool bRender = false;
 
@@ -87,6 +132,8 @@ unsigned int cowVerts;
 
 
 // a struct to define the constant buffer
+
+__declspec(align(16)) //if we set this 16 byte alignment, we don't have to worry about putting a pad into the actual struct.
 struct CBUFFER
 {
 	D3DXMATRIX Final;
@@ -95,21 +142,11 @@ struct CBUFFER
 	D3DXVECTOR4 LightVector;
 	D3DXCOLOR LightColor;
 	D3DXCOLOR AmbientColor;
-	D3DXVECTOR4 Camera;
+	D3DXVECTOR4 LightPos;
 	unsigned int mode;
-	unsigned int pad[3];
 };
 
-typedef struct tagKeyboard
-{
-	byte state[256];
-}keyboard_t;
 
-
-keyboard_t key;
-
-extern LPDIRECTINPUT			lpdi;		//direct input interface
-extern LPDIRECTINPUTDEVICE		lpKeyboard;
 
 // function prototypes
 void InitD3D(HWND hWnd);			// sets up and initializes Direct3D
@@ -122,6 +159,7 @@ void PhongRender(void);				// set up render for phong lighting
 void RefractRender(void);			// set up render for refraction. This will support both original and new refraction.
 void InitializeUAVs(void);			// UAVs get their own initializer now. There was too much to keep track of in the InitD3D() function.
 void SingleBounceRTRender(void);	// render call for the single bounce ray trace.
+void MakeMenu(HWND hWnd);			// create the menu for the
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -175,7 +213,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 
 
-
 	ZeroMemory(&menuWc, sizeof(WNDCLASSEX));
 
 	menuWc.cbClsExtra = NULL;
@@ -207,8 +244,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		WS_OVERLAPPEDWINDOW,
 		200,
 		200,
-		640,
-		480,
+		400,
+		800,
 		NULL,
 		NULL,
 		hInstance,
@@ -315,10 +352,6 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 		case ' ':
 			rotate = !rotate;
 			break;
-		case 'b':
-		case 'B':
-			bRender = !bRender;
-			break;
 		default:
 			break;
 		}
@@ -356,11 +389,91 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
 	{
+	case WM_CREATE:
+	{
+					  MakeMenu(hWnd);
+	}break;
 	case WM_DESTROY:
 	{
 					   PostQuitMessage(0);
 					   return 0;
 	} break;
+	case WM_COMMAND:
+	{
+					   switch (LOWORD(wParam))
+					   {
+					   case GOODBAD_BUTTON:
+					   {
+											  bool state = Button_GetCheck(hGBButton);
+											  bRender = !state;
+											  
+					   }break;
+					   case PAUSE_BUTTON:
+					   {
+											rotate = !rotate;
+					   }break;
+					   case FLAT_BUTTON:
+					   {
+										   if (Button_GetCheck(hFlatButton) == false)
+										   {
+											   Button_SetCheck(hFlatButton, true);
+											   break;
+										   }
+
+										   Button_SetCheck(*currButton, false);
+
+										   currButton = &hFlatButton;
+					   } break;
+					   case PHONG_BUTTON:
+					   {
+											if (Button_GetCheck(hPhongButton) == false)
+											{
+												Button_SetCheck(hPhongButton, true);
+												break;
+											}
+
+											Button_SetCheck(*currButton, false);
+
+											ShowWindow(hKAmb, SW_SHOW);
+
+											currButton = &hPhongButton;
+					   }break;
+					   case REFRACT_BUTTON:
+					   {
+											  if (Button_GetCheck(hRefractButton) == false)
+											  {
+												  Button_SetCheck(hRefractButton, true);
+												  break;
+											  }
+
+											  Button_SetCheck(*currButton, false);
+
+											  currButton = &hRefractButton;
+					   }break;
+					   case SINGLEBOUNCE_BUTTON:
+					   {
+												   if (Button_GetCheck(hRTButton) == false)
+												   {
+													   Button_SetCheck(hRTButton, true);
+													   break;
+												   }
+
+												   Button_SetCheck(*currButton, false);
+												   
+												   currButton = &hRTButton;
+					   }break;
+					   case PIXELORDERTOGGLE_BUTTON:
+					   {
+													   UINT mode = displayMode & PIXSYNC_OFF;
+													   if (mode){
+														   displayMode = displayMode & ~PIXSYNC_OFF;
+													   }
+													   else displayMode = displayMode | PIXSYNC_OFF;
+					   }
+					   default:
+						   break;
+					   }
+	}
 	default:
 		break;
 	}
@@ -472,9 +585,9 @@ void RenderFrame(void)
 	CBUFFER cBuffer;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
-	cBuffer.Camera = Light;
+	cBuffer.LightColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.AmbientColor = D3DXCOLOR(0.05f, 0.25f, 0.15f, 1.0f);
+	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
 	D3DXMATRIX matRotate, matView, matProjection;
@@ -538,18 +651,18 @@ void RenderFrame(void)
 	UINT offset = 0;
 	
 	//Default object use 
-	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-	//devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
-	//devcon->Draw(cowVerts, 0);
+	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+	devcon->Draw(cowVerts, 0);
 
 
 	//end of first pass.
@@ -560,15 +673,15 @@ void RenderFrame(void)
 
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 
-	devcon->DrawIndexed(36, 0, 0);
-	//devcon->Draw(cowVerts, 0);
+	//devcon->DrawIndexed(36, 0, 0);
+	devcon->Draw(cowVerts, 0);
 
 
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
 		//begin second pass.
 
 		D3DXMatrixLookAtLH(&matView,
-			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
+			&D3DXVECTOR3(-10.0f, 10.0f, -6.0f),   // the camera position
 			&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 			&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
@@ -596,8 +709,8 @@ void RenderFrame(void)
 		devcon->PSSetShader(pPS2, 0, 0);
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-		devcon->DrawIndexed(36, 0, 0);
-		//devcon->Draw(cowVerts, 0);
+		//devcon->DrawIndexed(36, 0, 0);
+		devcon->Draw(cowVerts, 0);
 	}
 
 	// switch the back buffer and the front buffer
@@ -929,10 +1042,13 @@ void InitPipeline(void)
 	bd.ByteWidth = sizeof(CBUFFER);
 	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 
-	dev->CreateBuffer(&bd, NULL, &pCBuffer);
+	HRESULT bres = dev->CreateBuffer(&bd, NULL, &pCBuffer);
 
-
-
+	if (bres != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"FAILED CONSTANT BUFFER CREATION", L"CBUFFER ERROR", MB_OK);
+		exit(EXIT_FAILURE);
+	}
 	devcon->VSSetConstantBuffers(0, 1, &pCBuffer);
 }
 
@@ -943,7 +1059,7 @@ void BadRenderFrame(void)
 	cBuffer.LightVector = Light;
 	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
 	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
-	cBuffer.Camera = Light;
+	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
 	D3DXMATRIX matRotate, matView, matProjection;
@@ -1185,4 +1301,312 @@ void InitializeUAVs(void)
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+}
+
+void MakeMenu(HWND hWnd)
+{
+
+	//InitCommonControls();
+
+	HGDIOBJ hfDefault = GetStockObject(DEFAULT_GUI_FONT);
+
+	//checkbox for good/bad render.
+	
+	hGBButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"GOOD/BAD",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		50,
+		20,
+		100,
+		24,
+		hWnd,
+		(HMENU)GOODBAD_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hGBButton,
+		WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	Button_SetCheck(hGBButton, true);
+
+	// Create a push button (we will use multiple buttons to acheive our changing of modes.
+
+	hPauseButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"PAUSE/UNPAUSE",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+		200,
+		800 - 24*3,
+		150,
+		24,
+		hWnd,
+		(HMENU)PAUSE_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+	
+	SendMessage(hPauseButton,
+		WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	// Create a checkbox for flat rendering
+
+	hFlatButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Diffuse",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		150,
+		20,
+		100,
+		24,
+		hWnd,
+		(HMENU)FLAT_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hFlatButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	Button_SetCheck(hFlatButton, true);
+
+	hPhongButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Phong",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		250,
+		20,
+		100,
+		24,
+		hWnd,
+		(HMENU)PHONG_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hPhongButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hRefractButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Refract",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		50,
+		60,
+		100,
+		24,
+		hWnd,
+		(HMENU)REFRACT_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hRefractButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hRTButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Ray Bounce",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		150,
+		60,
+		100,
+		24,
+		hWnd,
+		(HMENU)SINGLEBOUNCE_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+	
+	SendMessage(hRTButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hPixOrderToggle = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Pixel Order",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		250,
+		60,
+		100,
+		24,
+		hWnd,
+		(HMENU)PIXELORDERTOGGLE_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hPixOrderToggle, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	Button_SetCheck(hPixOrderToggle, true);
+
+	///we are at y = 100 for this next set of items in the menu.
+	/*
+	hKAmb = CreateWindowEx(
+		NULL,
+		L"TRACKBAR_CLASS",
+		L"Ambient",
+		WS_CHILD | TBS_AUTOTICKS | TBS_ENABLESELRANGE | WS_VISIBLE,
+		50,
+		100,
+		250,
+		24,
+		hWnd,
+		(HMENU)AMB_TRACKBAR,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hKAmb, TBM_SETRANGE,
+		(WPARAM)TRUE,
+		(LPARAM)MAKELONG(0, 100));
+
+	SendMessage(hKAmb, TBM_SETPAGESIZE,
+		(WPARAM)0, (LPARAM)4);
+
+	SendMessage(hKAmb, TBM_SETSEL,
+		(WPARAM)FALSE, (LPARAM)MAKELONG(0, 0));
+
+	SendMessage(hKAmb, TBM_SETPOS,
+		(WPARAM)TRUE, (LPARAM)50);
+
+	SendMessage(hKAmb, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	SetFocus(hKAmb);
+	*/
+	currButton = &hFlatButton;
+	
+
+	return;
+}
+
+void CreateSphere(int LatLines, int LongLines)
+{
+	NumSphereVertices = ((LatLines - 2) * LongLines) + 2;
+	NumSphereFaces = ((LatLines - 3) * (LongLines * 2)) + (LongLines * 2);
+
+	float sphereYaw = 0.0f;
+	float spherePitch = 0.0f;
+
+	std::vector<VERTEX> vertices(NumSphereVertices);
+
+	XMMATRIX Rotationx, Rotationy;
+	XMVECTOR currVertPos = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	vertices[0].vert.x = 0.0f;
+	vertices[0].vert.y = 0.0f;
+	vertices[0].vert.z = 1.0f;
+
+	for (DWORD i = 0; i < LatLines - 2; ++i)
+	{
+		spherePitch = (i + 1) * (3.14 / (LatLines - 1));
+		Rotationx = XMMatrixRotationX(spherePitch);
+		for (DWORD j = 0; j < LongLines; ++j)
+		{
+			sphereYaw = j * (6.28 / (LongLines));
+			Rotationy = XMMatrixRotationZ(sphereYaw);
+			currVertPos = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), (Rotationx * Rotationy));
+			currVertPos = XMVector3Normalize(currVertPos);
+			vertices[i*LongLines + j + 1].vert.x = XMVectorGetX(currVertPos);
+			vertices[i*LongLines + j + 1].vert.y = XMVectorGetY(currVertPos);
+			vertices[i*LongLines + j + 1].vert.z = XMVectorGetZ(currVertPos);
+		}
+	}
+
+	vertices[NumSphereVertices - 1].vert.x = 0.0f;
+	vertices[NumSphereVertices - 1].vert.y = 0.0f;
+	vertices[NumSphereVertices - 1].vert.z = -1.0f;
+
+	D3D11_BUFFER_DESC vertexBufferDesc;
+	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
+
+	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	vertexBufferDesc.ByteWidth = sizeof(VERTEX)* NumSphereVertices;
+	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	vertexBufferDesc.CPUAccessFlags = 0;
+	vertexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA vertexBufferData;
+	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
+	vertexBufferData.pSysMem = &vertices[0];
+	HRESULT hr = dev->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &sphereVertBuffer);
+
+
+	std::vector<DWORD> indices(NumSphereFaces * 3);
+
+	int k = 0;
+	for (DWORD l = 0; l < LongLines - 1; ++l)
+	{
+		indices[k] = 0;
+		indices[k + 1] = l+1;
+		indices[k + 2] = l + 2;
+	}
+
+	indices[k] = 0;
+	indices[k + 1] = LongLines;
+	indices[k + 2] = 1;
+	k += 3;
+
+	for (DWORD i = 0; i < LatLines - 3; ++i)
+	{
+		for (DWORD j = 0; j < LongLines - 1; ++j)
+		{
+			indices[k] = i*LongLines + j + 1;
+			indices[k + 1] = i*LongLines + j + 2;
+			indices[k + 2] = (i + 1)*LongLines + j + 1;
+
+			indices[k + 3] = (i + 1)*LongLines + j + 1;
+			indices[k + 4] = i*LongLines + j + 2;
+			indices[k + 5] = (i + 1)*LongLines + j + 2;
+
+			k += 6; // next quad
+		}
+
+		indices[k] = (i*LongLines) + LongLines;
+		indices[k + 1] = (i*LongLines) + 1;
+		indices[k + 2] = ((i + 1)*LongLines) + LongLines;
+
+		indices[k + 3] = ((i + 1)*LongLines) + LongLines;
+		indices[k + 4] = (i*LongLines) + 1;
+		indices[k + 5] = ((i + 1)*LongLines) + 1;
+
+		k += 6;
+	}
+
+	for (DWORD l = 0; l < LongLines - 1; ++l)
+	{
+		indices[k] = NumSphereVertices - 1;
+		indices[k + 1] = (NumSphereVertices - 1) - (l + 1);
+		indices[k + 2] = (NumSphereVertices - 1) - (l + 2);
+		k += 3;
+	}
+
+	indices[k] = NumSphereVertices - 1;
+	indices[k + 1] = (NumSphereVertices - 1) - LongLines;
+	indices[k + 2] = NumSphereVertices - 2;
+
+	D3D11_BUFFER_DESC indexBufferDesc;
+	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
+
+	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	indexBufferDesc.ByteWidth = sizeof(DWORD)* NumSphereFaces * 3;
+	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	indexBufferDesc.CPUAccessFlags = 0;
+	indexBufferDesc.MiscFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA iinitData;
+
+	iinitData.pSysMem = &indices[0];
+	dev->CreateBuffer(&indexBufferDesc, &iinitData, &sphereIndexBuffer);
+
 }
