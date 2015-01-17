@@ -81,8 +81,8 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	IntelExt_BeginPixelShaderOrdering();
 
 	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
-
-	color.g *= 1 + (pos - Shallow[pixelAddr]);
+	
+	else color.g *= 1 + (pos - Shallow[pixelAddr]);
 
 	return color;
 }
@@ -111,16 +111,15 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	ilc.x = (int)lightCoords.x;
 	ilc.y = (int)lightCoords.y;
 
-	//if ((lightCoords.x == -1) && (lightCoords.y == -1)){
-	//	color.r = 1.0;
-	//}
+	if ((lightCoords.x == -1) && (lightCoords.y == -1)){
+		color.r = 1.0;
+	}
 
 	float mdepth = uvDepth[uv];
 
 	float shallow = Shallow[ilc];
 
-	//if (mdepth == 100.f) color.b = 1.0f;
+	if (uvDepth[uv] > Shallow[lightCoords]) color.rgb -= (mdepth - shallow) * .5;
 
-	if (((shallow != 100.f) && (mdepth != 100.f)) && (mdepth > shallow)) color.rgb *= 1 - ((mdepth - shallow)*.25);
 	return color;
 }

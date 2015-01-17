@@ -153,24 +153,19 @@ algorithm, itself.
 \subsection{The Iris Connection}
 
 With this first iteration of Intel's Iris Graphics Pro, we have a feature
-called \textbf{Pixel Synchronization}. What Pixel Synch brings to the table is
-the power for a graphics programmer to, within the pixel shader stage of the
-pipeline, create a barrier where each pixel is stopped, and ordered by
-primitive ID number by pixel. This means that if there are multiple pixels in
-flight at the same (x,y) location, one pixel is allowed to run to completion,
-while the other pixels at that location must wait their turn. This ordered
-barrier means that a programmer can now determine which parts of a model will
-be rendered before/after another part, at that specific screen location. As
-such, this gives programmers the potential to have rudimentary knowledge of
-the depth of some parts of the model with respect to others.
+called \textbf{Pixel Synchronization}. Pixel Sync gives us the ability to,
+within the shader, write algorithms that are executed in-order. With this, we
+have the power to know the depth of an object, such as how deep it is within
+the scene, and act on that depth in a single pass, or even know the depth of
+parts of an object, with respect to the rest of the model.
 
-\subsection{Rationale}
+\subsubsection{How Pixel Synchronization Works}
 
 
 
 
 
-\section{Subsurface Scattering}
+\section{Simple Subsurface Scattering}
 
 
 
@@ -191,11 +186,5 @@ the depth of some parts of the model with respect to others.
 \subsection{"Fake" Convex Object Refraction}
 
 \subsection{Better Convex Refraction With Iris}
-
-
-
-\section{Single-Bounce Raytrace/Hit-Detection}
-
-\section{Conclusions and Future Work}
 
 \end{document}
