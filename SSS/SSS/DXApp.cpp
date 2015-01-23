@@ -98,6 +98,8 @@ ID3D11Texture2D *pUAVDTex3;
 ID3D11Texture2D *pVoxels;
 ID3D11Texture2D *p3DMask;
 ID3D11UnorderedAccessView *pVoxelUAV;
+ID3D11UnorderedAccessView *p3DUAV;
+ID3D11UnorderedAccessView *pVoxelUAVs[2];
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *SRVs[4];
 ID3D11DepthStencilState * pDSState;
@@ -156,6 +158,14 @@ struct CBUFFER
 	unsigned int mode;
 };
 
+struct cbPerObject
+{
+	D3DXMATRIX WVP;
+	D3DXMATRIX World;
+};
+
+cbPerObject cbPerObj;
+
 
 
 // function prototypes
@@ -170,6 +180,8 @@ void RefractRender(void);			// set up render for refraction. This will support b
 void InitializeUAVs(void);			// UAVs get their own initializer now. There was too much to keep track of in the InitD3D() function.
 void RTRender(void);				// render call for the single bounce ray trace.
 void MakeMenu(HWND hWnd);			// create the menu for the
+
+void loadSkymap(void);
 
 void CreateSphere(int latLines, int longLines);
 
@@ -648,7 +660,7 @@ void RenderFrame(void)
 
 	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, pNullRTView, NULL, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 	devcon->OMSetDepthStencilState(pDSState, 1);
@@ -664,11 +676,6 @@ void RenderFrame(void)
 
 	// create a projection matrix
 	D3DXMatrixOrthoLH(&matProjection, 10, 10, -5, 5);
-	//D3DXMatrixPerspectiveFovLH(&matProjection,
-//		(FLOAT)D3DXToRadian(45),                    // field of view
-//		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
-//		1.0f,                                       // near view-plane
-//		100.0f);                                    // far view-plane
 		
 	// load the matrices into the constant buffer
 	cBuffer.Final = matRotate * matView * matProjection;
@@ -684,10 +691,6 @@ void RenderFrame(void)
 	// select which vertex buffer to display
 	UINT stride = sizeof(VERTEX);
 	UINT offset = 0;
-	
-	//Default object use 
-	//devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
-	//devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
 
 	
 
@@ -696,7 +699,7 @@ void RenderFrame(void)
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
-	//devcon->DrawIndexed(36, 0, 0); //this is for the default cube object
+
 	if (whichModel == MODEL_PAWN)
 	{
 		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
@@ -711,10 +714,14 @@ void RenderFrame(void)
 	}
 
 	//end of first pass.
+
+
 	//second pass for shallow info
 
 	devcon->VSSetShader(pVS2, 0, 0);
 	devcon->PSSetShader(pPSO, 0, 0);
+
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
 
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
 
@@ -730,7 +737,7 @@ void RenderFrame(void)
 
 
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
-		//begin second pass.
+		//begin third pass.
 
 		D3DXMatrixLookAtLH(&matView,
 			&D3DXVECTOR3(-10.0f, 10.0f, -6.0f),   // the camera position
@@ -906,7 +913,7 @@ void InitGraphics(void)
 
 
 
-	//CreateSphere(50, 50);
+	CreateSphere(20, 20);
 
 	// create the index buffer out of DWORDs
 	DWORD OurIndices[] =
@@ -1105,6 +1112,31 @@ void InitPipeline(void)
 		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
+	ID3D10Blob *SkyErrors;
+
+	Result = D3DX11CompileFromFile(L"skymap.hlsl", 0, 0, "SKYMAP_VS", "vs_5_0", 0, 0, 0, &SKYMAP_VS_BUFFER, &SkyErrors, 0);
+	if (Result)
+	{
+		char *buff = (char *)SkyErrors->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	Result = D3DX11CompileFromFile(L"skymap.hlsl", 0, 0, "SKYMAP_PS", "vs_5_0", 0, 0, 0, &SKYMAP_PS_BUFFER, &SkyErrors, 0);
+	if (Result)
+	{
+		char *buff = (char *)SkyErrors->GetBufferPointer();
+		wchar_t wtext[1000], wtext2[1000];
+		mbstowcs(wtext, buff, strlen(buff) + 1);
+		LPCWSTR myString = wtext;
+		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+	
 	// create the shader objects
 	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
 	dev->CreateVertexShader(VS2->GetBufferPointer(), VS2->GetBufferSize(), NULL, &pVS2);
@@ -1298,6 +1330,17 @@ void InitializeUAVs(void)
 
 	if (r != S_OK) MessageBox(HWND_DESKTOP, L"3D Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
 
+	D3D11_UNORDERED_ACCESS_VIEW_DESC uvoxdsc;
+
+	uvoxdsc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
+	uvoxdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
+	uvoxdsc.Texture2DArray.ArraySize = 181;
+	uvoxdsc.Texture2DArray.MipSlice = 0;
+	uvoxdsc.Texture2DArray.FirstArraySlice = 0;
+
+	HRESULT uvoxres = dev->CreateUnorderedAccessView(pVoxels, &uvoxdsc, &pVoxelUAVs[0]);
+
+	if (uvoxres != S_OK)MessageBox(HWND_DESKTOP, L"Voxel UAV creation unsuccessful", L"Arguments invalid", MB_OK);
 
 	D3D11_TEXTURE2D_DESC tmdsc;
 	ZeroMemory(&tmdsc, sizeof(tmdsc));
@@ -1314,6 +1357,19 @@ void InitializeUAVs(void)
 	r = dev->CreateTexture2D(&tmdsc, NULL, &p3DMask);
 
 	if (r != S_OK) MessageBox(HWND_DESKTOP, L"3D Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC uavdsc;
+
+	uavdsc.Format = DXGI_FORMAT_R32_UINT;
+	uavdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
+	uavdsc.Texture2DArray.MipSlice = 0;
+	uavdsc.Texture2DArray.ArraySize = 181;
+	uavdsc.Texture2DArray.FirstArraySlice = 0;
+
+	HRESULT uRes = dev->CreateUnorderedAccessView(p3DMask, &uavdsc, &pVoxelUAVs[1]);
+
+	if (uRes != S_OK) MessageBox(HWND_DESKTOP, L"3D UAV Creation Unsuccessful!", L"Texture Error!", MB_OK);
+
 
 
 	D3D11_TEXTURE2D_DESC texDesc;
@@ -1334,13 +1390,6 @@ void InitializeUAVs(void)
 		MessageBox(HWND_DESKTOP, L"Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
-
-	D3D11_UNORDERED_ACCESS_VIEW_DESC udsc;
-	ZeroMemory(&udsc, sizeof(udsc));
-
-	udsc.Format = DXGI_FORMAT_R32_FLOAT;
-
-	//create UAV for the pixel shaders to use
 
 	D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
 	ZeroMemory(&UAVdesc, sizeof(UAVdesc));
@@ -1779,15 +1828,39 @@ void RTRender(void)
 	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
 	static float Time = 0.0f;
 
+	D3DXMatrixIdentity(&matRotate);
+
+	ID3D11RenderTargetView * nullRTV;
+
+	D3DXMatrixPerspectiveFovLH(&matProjection,
+			(FLOAT)D3DXToRadian(45),                    // field of view
+			(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
+			1.0f,                                       // near view-plane
+			100.0f);                                    // far view-plane
+
+
+	D3DXMatrixLookAtLH(&matView,
+		&D3DXVECTOR3(Light.x, Light.y, Light.z),   // the camera position // - pass 1: change name of "Camera" to "Light"
+		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+	cBuffer.Rotation = matRotate;
+	cBuffer.Final = matRotate * matView * matProjection;
+	cBuffer.modelView = matView;
+
 	if (rotate) Time += 0.004;
 
-	//Begin First Pass
+	//set render targets/UAVs.
 
-	//All of this should be done in perspective.
+	//devcon->OMGetRenderTargetsAndUnorderedAccessViews(1, &nullRTV, &zbuffer, 1, );
 
 	//what I need:
 
 	//First pass: voxelize
+
+	//Render Background (skybox)
+
+	
 
 	//Second pass: trace and render
 
