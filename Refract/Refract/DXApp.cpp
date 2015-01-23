@@ -31,6 +31,7 @@ ID3D11InputLayout *pLayout;
 //For Skybox
 ID3D11Buffer *sphereIndexBuffer;
 ID3D11Buffer *sphereVertBuffer;
+ID3D11Buffer *pSBCBuffer;
 ID3D10Blob	*SKYMAP_VS_BUFFER;
 ID3D10Blob	*SKYMAP_PS_BUFFER;
 ID3D11VertexShader *SKYMAP_VS;
@@ -38,6 +39,15 @@ ID3D11PixelShader *SKYMAP_PS;
 
 //Intel Extension stuff
 IGFX::Extensions myExtensions;
+
+
+struct cbPerObject
+{
+	D3DXMATRIX WVP;
+	D3DXMATRIX World;
+};
+
+cbPerObject cbPerObj;
 
 void InitD3D(HWND hWnd);
 void RenderFrame(void);
@@ -302,6 +312,22 @@ void InitPipeline(void){
 	/*--IED Defined and Set.--*/
 
 	/*------------------------------------------------------------------------------*/
+
+	/*--Define and set our constant buffers here.--*/
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
+
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(cbPerObject);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+	Result = dev->CreateBuffer(&bd, NULL, &pSBCBuffer);
+	if (Result != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Skybox Constant Buffer Creation unsuccessful!", L"D3D Device Error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+	devcon->VSSetConstantBuffers(0, 1, &pSBCBuffer); //We just initially set the constant buffer.
 }
 
 void InitGraphics(void){
