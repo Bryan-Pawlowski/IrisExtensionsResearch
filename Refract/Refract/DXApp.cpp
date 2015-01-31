@@ -26,6 +26,8 @@ ID3D11DeviceContext *devcon;
 ID3D11RenderTargetView *backbuffer;
 ID3D11DepthStencilView *zbuffer;
 ID3D11InputLayout *pLayout;
+ID3D11RasterizerState *DisableCull;
+ID3D11RasterizerState *CullBack;
 
 
 //For Skybox
@@ -36,10 +38,20 @@ ID3D10Blob	*SKYMAP_VS_BUFFER;
 ID3D10Blob	*SKYMAP_PS_BUFFER;
 ID3D11VertexShader *SKYMAP_VS;
 ID3D11PixelShader *SKYMAP_PS;
+ID3D11ShaderResourceView *smrv;
+ID3D11SamplerState *CubesTexSamplerState;
+
+D3DXMATRIX sphereWorld;
+
+ID3D11DepthStencilState * DSLessEqual;
 
 //Intel Extension stuff
 IGFX::Extensions myExtensions;
 
+//Camera Info
+D3DXVECTOR3 camPosition = D3DXVECTOR3(0.0f, 5.0f, -8.0f);
+D3DXVECTOR3 camTarget = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
+D3DXVECTOR3 camUp = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
 
 struct cbPerObject
 {
@@ -112,7 +124,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	ShowWindow(hWnd, nCmdShow);
 
 	// set up and initialize Direct3D
-	
+
 	InitD3D(hWnd);
 
 	// enter the main loop:
@@ -131,14 +143,14 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 		}
 
-		//RenderFrame();
+		RenderFrame();
 	}
 
 	// clean up DirectX and COM
 	CleanD3D();
 
 	//	struct model temp = ReadObject(NULL);
-	
+
 	return msg.wParam;
 }
 
@@ -224,13 +236,13 @@ void InitD3D(HWND hWnd)
 	res = dev->CreateDepthStencilView(pDepthBuffer, &dsvd, &zbuffer);
 	pDepthBuffer->Release();
 	/*--Depth Buffer Created!--*/
-	
+
 	/*------------------------------------------------------------------------------*/
 
 	/*--Back Buffer Creation--*/
 	ID3D11Texture2D *pBackBuffer;
 	swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBackBuffer);
-	
+
 	dev->CreateRenderTargetView(pBackBuffer, NULL, &backbuffer);
 	devcon->OMSetRenderTargets(1, &backbuffer, zbuffer);
 	/*--Back Buffer Created and set!--*/
@@ -257,6 +269,51 @@ void InitD3D(HWND hWnd)
 	res = IGFX::Init(dev);
 	if (res == S_OK) myExtensions = IGFX::getAvailableExtensions(dev);
 	/*--We now have knowledge of our intel extensions!*/
+
+	/*------------------------------------------------------------------------------*/
+
+	/*--Load Cube Texture--*/
+	D3DX11_IMAGE_LOAD_INFO loadSMInfo;
+	loadSMInfo.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+	//Load the texture
+	ID3D11Texture2D* SMTexture = 0;
+	res = D3DX11CreateTextureFromFile(dev, L"skymap.dds",
+		&loadSMInfo, 0, (ID3D11Resource**)&SMTexture, 0);
+
+	//Create the texture description
+	D3D11_TEXTURE2D_DESC SMTextureDesc;
+	SMTexture->GetDesc(&SMTextureDesc);
+
+	//Tell D3DWe have a cube texture, which is an array of 2D textures.
+	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
+	SMViewDesc.Format = SMTextureDesc.Format;
+	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
+	SMViewDesc.TextureCube.MostDetailedMip = 0;
+
+	res = dev->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
+
+	if (res != S_OK){
+		MessageBox(HWND_DESKTOP, L"Could not load the texture cube!", L"Texture error!", MB_OK);
+		exit(EXIT_SUCCESS);
+	}
+
+	D3D11_SAMPLER_DESC sampdesc;
+	ZeroMemory(&sampdesc, sizeof(sampdesc));
+	sampdesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sampdesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampdesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampdesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sampdesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	sampdesc.MinLOD = 0;
+	sampdesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+	res = dev->CreateSamplerState(&sampdesc, &CubesTexSamplerState);
+
+	if (res != S_OK){
+		MessageBox(HWND_DESKTOP, L"Could not create sampler state!", L"Sampler State Error", MB_OK);
+	}
 
 	InitPipeline();
 	InitGraphics();
@@ -332,6 +389,49 @@ void InitPipeline(void){
 
 void InitGraphics(void){
 
+	/*--Create Skybox--*/
+	CreateSphere(20, 20); //Sphere geometry created and stored.
+
+	/*--Rasterizer stuff--*/
+
+	/*--Set a disabled cull state--*/
+	D3D11_RASTERIZER_DESC wfdesc;
+	ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+	wfdesc.FillMode = D3D11_FILL_SOLID;
+	wfdesc.CullMode = D3D11_CULL_NONE;
+	HRESULT Result = dev->CreateRasterizerState(&wfdesc, &DisableCull);
+	if (Result != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Creating Skybox Rasterizer state failed!", L"Graphics init failure!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+	/*--Disabled Cull state created!--*/
+
+	/*------------------------------------------------------------------------------*/
+
+	/*--Enable Cull Raster State--*/
+
+	wfdesc.CullMode = D3D11_CULL_BACK;
+	Result = dev->CreateRasterizerState(&wfdesc, &CullBack);
+
+	/*--Enable Cull Raster State Created!--*/
+
+	/*------------------------------------------------------------------------------*/
+
+	/*--DepthStencil!--*/
+	D3D11_DEPTH_STENCIL_DESC dsDesc;
+	ZeroMemory(&dsDesc, sizeof(D3D11_DEPTH_STENCIL_DESC));
+	dsDesc.DepthEnable = true;
+	dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	dsDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+	Result = dev->CreateDepthStencilState(&dsDesc, &DSLessEqual);
+
+	if (Result != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Depth Stencil Failed to create!", L"D3D Error!", MB_OK);
+	}
+
 }
 
 void CleanD3D(void)
@@ -339,6 +439,16 @@ void CleanD3D(void)
 	swapchain->Release();
 	dev->Release();
 	devcon->Release();
+
+	SKYMAP_PS->Release();
+	SKYMAP_VS->Release();
+	SKYMAP_PS_BUFFER->Release();
+	SKYMAP_VS_BUFFER->Release();
+
+	smrv->Release();
+
+	DisableCull->Release();
+	CullBack->Release();
 }
 void CreateSphere(int LatLines, int LongLines)
 {
@@ -502,4 +612,52 @@ void CreateSphere(int LatLines, int LongLines)
 		exit(EXIT_FAILURE);
 	}
 
+}
+
+void RenderFrame()
+{
+	D3DXMATRIX ModelViewProjection, matProjection, lookAt;
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+
+	devcon->ClearRenderTargetView(backbuffer, D3DXCOLOR(0.0f, 0.2f, 0.4f, 0.0f));
+
+	//devcon->ClearRenderTargetView(backbuffer, D3DXCOLOR(0.0f, 0.0f, 0.0f, 0.0f));
+
+	D3DXMatrixIdentity(&sphereWorld);
+
+	D3DXMATRIX scale, translation;
+	D3DXMatrixScaling(&scale, 5.0f, 5.0f, 5.0f);
+
+	D3DXMatrixTranslation(&translation, camPosition.x, camPosition.y, camPosition.z);
+
+	sphereWorld = scale * translation;
+
+	D3DXMatrixLookAtLH(&lookAt, &camPosition, &camTarget, &camUp);
+	D3DXMatrixPerspectiveFovLH(&matProjection,
+		0.4f*3.14f,                    // field of view
+		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
+		1.0f,                                       // near view-plane
+		1000.0f);                                    // far view-plane
+	ModelViewProjection = sphereWorld * lookAt * matProjection;
+
+	devcon->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+	devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+
+	cbPerObj.WVP = ModelViewProjection;
+	cbPerObj.World = sphereWorld;
+
+	devcon->UpdateSubresource(pSBCBuffer, 0, NULL, &cbPerObj, 0, 0);
+	devcon->PSSetShaderResources(0, 1, &smrv);
+	devcon->PSSetSamplers(0, 1, &CubesTexSamplerState);
+
+	devcon->VSSetShader(SKYMAP_VS, 0, 0);
+	devcon->PSSetShader(SKYMAP_PS, 0, 0);
+
+	devcon->OMSetDepthStencilState(DSLessEqual, 0);
+	devcon->RSSetState(DisableCull);
+
+	devcon->DrawIndexed(NumSphereFaces * 3, 0, 0);
+
+	swapchain->Present(0, 0);
 }

@@ -4,6 +4,8 @@
 #define SCREEN_HEIGHT	1080.f
 
 #define PIXSYNC_OFF		1024
+#define DIFFUSE_WRAP	512
+#define PHONG_RENDER	256
 #define INVERT			1
 
 #define SHININESS		1.0
@@ -121,7 +123,7 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 	return output;
 }
 
-float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA, uint mode : MODE) : SV_TARGET 
+float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : TEXCOORD, float4 norm : NORMAL, float4 camera : CAMERA) : SV_TARGET 
 {
 	float2 svPos = position.xy;
 	float mdepth = distance(position, camera);
@@ -168,12 +170,9 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	float3 lightVec : NORMAL1, float4 lightCol : COLOR1, uint mode : MODE, float4 rotNorm : NORMAL2, float3 eyeVec : NORMAL3) : SV_TARGET
 {
 	uint2 uv = UVs;
-
-	
-	uint2 lightCoords;
-
-	lightCoords.x = fromLightX[uv];
-	lightCoords.y = fromLightY[uv];
+	float wrap = 0.6;
+	float scatterWidth = 0.3;
+	float4 scatterColor = color;
 
 	// Phong Stuff
 	float3 Normal;
@@ -185,15 +184,15 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	Eye = normalize(eyeVec);
 
 	//set ambient
-	float4 ambient = color * .75f;
+	float4 ambient = color * .6;
 
-	//set diffuse
-		float d = max(dot(Normal, Light), 0);
-	float4 diffuse = 5 * d * color;
+		//set diffuse
+	float d; 
+	if(mode & DIFFUSE_WRAP) d = max((dot(Normal, Light) + wrap) / (1 + wrap), 0);
+	else d = max(dot(Normal, Light), 0);
+	float4 diffuse = 2 * d * color;
 
-		//set specular (if any)
-
-		float s = 0.;
+	float s = 0.;
 
 	if (dot(Normal, Light) > 0)
 	{
@@ -202,18 +201,20 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	}
 	float4 specular = 2.5 * s * lightCol;
 
-	float mdepth = uvDepth[uv];
+	if (!(mode & PHONG_RENDER))
+	{
+		uint2 lightCoords;
 
-	float shallow = Shallow[lightCoords];
+		lightCoords.x = fromLightX[uv];
+		lightCoords.y = fromLightY[uv];
 
-	if ((mode & PIXSYNC_OFF) && (uvDepth[uv] > Shallow[lightCoords])) ambient -= ((mdepth - shallow) * 1.5);
-	//else ambient *= .25;
+		float mdepth = uvDepth[uv];
+
+		float shallow = Shallow[lightCoords];
+
+		if ((mode & PIXSYNC_OFF) && (uvDepth[uv] > Shallow[lightCoords])) diffuse -= (mdepth - shallow) * 1.5;
+	}
+
 	color = float4(ambient.rgb + diffuse.rgb + specular.rgb, 1.);
-
-	//float diffusebrightness = saturate(dot(rotNorm, lightVec));
-
-	//color += lightCol * diffusebrightness;
-	
 		return color;
 }
-

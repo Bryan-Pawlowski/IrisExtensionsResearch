@@ -28,6 +28,7 @@ SKYMAP_VS_OUTPUT SKYMAP_VS(float3 inPos: POSITION, float2 inTexCoord : TEXCOORD,
 float4 SKYMAP_PS(SKYMAP_VS_OUTPUT input) : SV_TARGET
 {
 
-	return SkyMap.Sample(ObjSamplerState, input.texCoord);
+	//return SkyMap.Sample(ObjSamplerState, input.texCoord);
 
+	return float4(0.0, 1.0, 0.0, 1.0);
 }

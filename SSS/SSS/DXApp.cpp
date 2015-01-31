@@ -17,6 +17,7 @@
 #include "OBJ-Loader.h"
 #include <vector>
 #include <XNAMath.h>
+#include <sstream>
 
 
 // define the screen resolution
@@ -38,7 +39,7 @@
 #define MODE_SAMPLE						64	//custom sample on second render
 #define MODE_NO_SAMPLE					128	//no custom sample on second render
 #define PHONG_RENDER					256
-#define	DIFFUSE_RENDER					512
+#define	DIFFUSE_WRAP					512
 #define PIXSYNC_OFF						1024
 
 #define PAUSE_BUTTON					101	//Pause button identifier
@@ -119,6 +120,15 @@ ID3D11ShaderResourceView *smrv;
 int NumSphereVertices;
 int NumSphereFaces;
 
+double countsPerSecond = 0.0;
+__int64 CounterStart = 0;
+
+unsigned int frameCount = 0;
+unsigned int fps = 0;
+
+__int64 frameTimeOld = 0;
+double frameTime;
+
 /*End globals and prototypes for skybox*/
 
 ID3D11RenderTargetView *RTVs[2];
@@ -134,13 +144,17 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 D3DXVECTOR4 Light = D3DXVECTOR4(1.75f, 2.f, 1.25f, 1.0);
 unsigned int displayMode = MODE_PERSP_SHOW_FLAT_SCALE; //how to render scene, and whether or not we will use sampling.
-unsigned int illuminationMode = DIFFUSE_RENDER;
 unsigned int whichModel = MODEL_PAWN;
 bool rotate = false;
 bool bRender = false;
+bool pRender = false;
 
 
 unsigned int cowVerts;
+
+std::wstring printText;
+
+HWND hMenu;
 
 
 // a struct to define the constant buffer
@@ -172,18 +186,25 @@ cbPerObject cbPerObj;
 void InitD3D(HWND hWnd);			// sets up and initializes Direct3D
 void RenderFrame(void);				// renders a single frame, basic with just a quick depth-based shadow on the object.
 void BadRenderFrame(void);			// renders a single frame, but with the bad approach.
+void PhongRenderFrame(void);		// renders a single frame, with phong smoothing.
 void CleanD3D(void);				// closes Direct3D and releases memory
 void InitGraphics(void);			// creates the shape to render
 void InitPipeline(void);			// loads and prepares the shaders
-void PhongRender(void);				// set up render for phong lighting
 void RefractRender(void);			// set up render for refraction. This will support both original and new refraction.
 void InitializeUAVs(void);			// UAVs get their own initializer now. There was too much to keep track of in the InitD3D() function.
 void RTRender(void);				// render call for the single bounce ray trace.
 void MakeMenu(HWND hWnd);			// create the menu for the
+void printFPS(void);
 
 void loadSkymap(void);
 
 void CreateSphere(int latLines, int longLines);
+
+//Timing functions
+
+void StartTimer();
+double GetTime();
+double GetFrameTime();
 
 // the WindowProc function prototype
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -195,7 +216,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	int nCmdShow)
 {
 	HWND hWnd;
-	HWND hMenu;
+	
 	WNDCLASSEX wc, menuWc;
 
 	ZeroMemory(&wc, sizeof(WNDCLASSEX));
@@ -308,8 +329,22 @@ int WINAPI WinMain(HINSTANCE hInstance,
 			
 		}
 
-		if(!bRender) RenderFrame();
-		else BadRenderFrame();
+		frameCount++;
+		if (GetTime() > 1.0f)
+		{
+			fps = frameCount;
+			frameCount = 0;
+			StartTimer();
+		}
+		frameTime = GetFrameTime();
+
+		printFPS();
+
+		
+
+		if(!bRender && !pRender) RenderFrame();
+		else if(bRender) BadRenderFrame();
+		else if (pRender) PhongRenderFrame();
 	}
 
 	// clean up DirectX and COM
@@ -431,8 +466,13 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					   {
 					   case GOODBAD_BUTTON:
 					   {
-											  bool state = Button_GetCheck(hGBButton);
-											  bRender = !state;
+											  bRender = !bRender;
+
+											  if (bRender == true)
+											  {
+												  pRender = false;
+												  Button_SetCheck(hPhongButton, false);
+											  }
 											  
 					   }break;
 					   case PAUSE_BUTTON:
@@ -453,17 +493,20 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					   } break;
 					   case PHONG_BUTTON:
 					   {
-											if (Button_GetCheck(hPhongButton) == false)
+											pRender = !pRender;
+											
+											if (pRender == true)
 											{
-												Button_SetCheck(hPhongButton, true);
-												break;
+												bRender = false;
+												Button_SetCheck(hGBButton, false);
+												displayMode = displayMode | PHONG_RENDER;
+											}
+											else
+											{
+												displayMode = displayMode & ~PHONG_RENDER;
 											}
 
-											Button_SetCheck(*currButton, false);
 
-											ShowWindow(hKAmb, SW_SHOW);
-
-											currButton = &hPhongButton;
 					   }break;
 					   case REFRACT_BUTTON:
 					   {
@@ -479,15 +522,11 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					   }break;
 					   case SINGLEBOUNCE_BUTTON:
 					   {
-												   if (Button_GetCheck(hRTButton) == false)
-												   {
-													   Button_SetCheck(hRTButton, true);
-													   break;
+												   UINT mode = displayMode & DIFFUSE_WRAP;
+												   if (mode){
+													   displayMode = displayMode & ~DIFFUSE_WRAP;
 												   }
-
-												   Button_SetCheck(*currButton, false);
-												   
-												   currButton = &hRTButton;
+												   else displayMode = displayMode | DIFFUSE_WRAP;
 					   }break;
 					   case PIXELORDERTOGGLE_BUTTON:
 					   {
@@ -500,7 +539,17 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					   default:
 						   break;
 					   }
-	}
+	}break;
+	case WM_PAINT:
+	{
+					 PAINTSTRUCT ps;
+					 HDC hDC;
+					 unsigned int len = printText.length();
+					 hDC = BeginPaint(hWnd, &ps);
+					 FillRect(hDC, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
+					 TextOut(hDC, 50, 800-24*4, printText.c_str(), len);
+					 EndPaint(hWnd, &ps);
+	}break;
 	default:
 		break;
 	}
@@ -632,8 +681,10 @@ void RenderFrame(void)
 	CBUFFER cBuffer;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.05f, 0.25f, 0.15f, 1.0f);
+	//cBuffer.LightColor = D3DXCOLOR(0.29f, 0.29f, 0.29f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
+	//cBuffer.AmbientColor = D3DXCOLOR(0.05f, 0.25f, 0.15f, 1.0f);
+	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
@@ -657,8 +708,6 @@ void RenderFrame(void)
 	devcon->PSSetShader(pPS, 0, 0);
 
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
-
-	//devcon->OMSetRenderTargets(1, pNullRTView, zbuffer);
 
 	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, pNullRTView, NULL, 1, 4, pUAV, 0);
 
@@ -894,7 +943,7 @@ void InitGraphics(void)
 	//load sphere model for skybox
 
 	Model *sphereModel = (Model *)malloc(sizeof(Model));
-	int res2 = sphereModel->modelInit("vase.obj");
+	int res2 = sphereModel->modelInit("sphere.obj");
 	if (!res2){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -913,7 +962,7 @@ void InitGraphics(void)
 
 
 
-	CreateSphere(20, 20);
+	//CreateSphere(20, 20);
 
 	// create the index buffer out of DWORDs
 	DWORD OurIndices[] =
@@ -1115,28 +1164,7 @@ void InitPipeline(void)
 
 	ID3D10Blob *SkyErrors;
 
-	Result = D3DX11CompileFromFile(L"skymap.hlsl", 0, 0, "SKYMAP_VS", "vs_5_0", 0, 0, 0, &SKYMAP_VS_BUFFER, &SkyErrors, 0);
-	if (Result)
-	{
-		char *buff = (char *)SkyErrors->GetBufferPointer();
-		wchar_t wtext[1000], wtext2[1000];
-		mbstowcs(wtext, buff, strlen(buff) + 1);
-		LPCWSTR myString = wtext;
-		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
 
-	Result = D3DX11CompileFromFile(L"skymap.hlsl", 0, 0, "SKYMAP_PS", "vs_5_0", 0, 0, 0, &SKYMAP_PS_BUFFER, &SkyErrors, 0);
-	if (Result)
-	{
-		char *buff = (char *)SkyErrors->GetBufferPointer();
-		wchar_t wtext[1000], wtext2[1000];
-		mbstowcs(wtext, buff, strlen(buff) + 1);
-		LPCWSTR myString = wtext;
-		MessageBox(HWND_DESKTOP, myString, L"Pixel Shader 2 Error!", MB_OK);
-		exit(EXIT_FAILURE);
-	}
-	
 	// create the shader objects
 	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
 	dev->CreateVertexShader(VS2->GetBufferPointer(), VS2->GetBufferSize(), NULL, &pVS2);
@@ -1227,12 +1255,6 @@ void BadRenderFrame(void)
 
 	// create a projection matrix
 	D3DXMatrixOrthoLH(&matProjection, 3.4, 3.4, 0, 1);
-	/*D3DXMatrixPerspectiveFovLH(&matProjection,
-	(FLOAT)D3DXToRadian(90),                    // field of view
-	(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_WIDTH, // aspect ratio
-	1.0f,                                       // near view-plane
-	100.0f);                                    // far view-plane
-	*/
 
 	// load the matrices into the constant buffer
 	cBuffer.Final = matRotate * matView * matProjection;
@@ -1268,8 +1290,6 @@ void BadRenderFrame(void)
 
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
 		//begin second pass.
-
-		//devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, RTVs, zbuffer, 1, 4, nUAV, 0);
 
 		D3DXMatrixLookAtLH(&matView,
 			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
@@ -1564,7 +1584,7 @@ void MakeMenu(HWND hWnd)
 	hPhongButton = CreateWindowEx(
 		NULL,
 		L"BUTTON",
-		L"Phong",
+		L"Phong Only",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
 		250,
 		20,
@@ -1600,7 +1620,7 @@ void MakeMenu(HWND hWnd)
 	hRTButton = CreateWindowEx(
 		NULL,
 		L"BUTTON",
-		L"Ray Bounce",
+		L"Diffuse Wrap",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
 		150,
 		60,
@@ -1632,8 +1652,6 @@ void MakeMenu(HWND hWnd)
 	SendMessage(hPixOrderToggle, WM_SETFONT,
 		(WPARAM)hfDefault,
 		MAKELPARAM(FALSE, 0));
-
-	Button_SetCheck(hPixOrderToggle, true);
 
 	currButton = &hFlatButton;
 	
@@ -1866,4 +1884,113 @@ void RTRender(void)
 
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
+}
+
+void PhongRenderFrame(void)
+{
+	CBUFFER cBuffer;
+
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+
+	cBuffer.LightVector = Light;
+	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
+	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.LightPos = Light;
+	cBuffer.mode = displayMode;
+
+	D3DXMATRIX matRotate, matView, matProjection;
+	D3DXMATRIX matFinal;
+
+	devcon->VSSetShader(pVS2, 0, 0);
+	devcon->PSSetShader(pPS2, 0, 0);
+
+	D3DXMatrixIdentity(&matRotate);
+
+	D3DXMatrixLookAtLH(&matView,
+		&D3DXVECTOR3(-10.0f, 10.0f, -6.0f),   // the camera position
+		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+	D3DXMatrixPerspectiveFovLH(&matProjection,
+		(FLOAT)D3DXToRadian(45),                    // field of view
+		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+		1.0f,                                       // near view-plane
+		100.0f);
+
+
+	cBuffer.Rotation = matRotate;
+	cBuffer.Final = matView * matRotate * matProjection;
+	cBuffer.modelView = matView;
+
+	devcon->RSSetState(EnableCull);
+	devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
+
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+	
+	if (whichModel == MODEL_PAWN)
+	{
+		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+		devcon->Draw(cowVerts, 0);
+	}
+	else
+	{
+		devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+		devcon->Draw(NumSphereVertices, 0);
+	}
+
+	swapchain->Present(0, 0);
+
+}
+
+void StartTimer(void)
+{
+	LARGE_INTEGER frequencyCount;
+	QueryPerformanceFrequency(&frequencyCount);
+
+	countsPerSecond = double(frequencyCount.QuadPart);
+
+	QueryPerformanceCounter(&frequencyCount);
+	CounterStart = frequencyCount.QuadPart;
+}
+
+double GetTime()
+{
+	LARGE_INTEGER currentTime;
+	QueryPerformanceCounter(&currentTime);
+	return double(currentTime.QuadPart - CounterStart) / countsPerSecond;
+}
+
+double GetFrameTime()
+{
+	LARGE_INTEGER currentTime;
+	__int64 tickCount;
+	QueryPerformanceCounter(&currentTime);
+
+	tickCount = currentTime.QuadPart - frameTimeOld;
+	frameTimeOld = currentTime.QuadPart;
+
+	if (tickCount < 0.0f)
+		tickCount = 0.0f;
+
+	return float(tickCount) / countsPerSecond;
+}
+
+void printFPS(void)
+{
+	std::wostringstream printString;
+	printString << "FPS: " << fps;
+
+	printText = printString.str();
+	HRGN hRgn = CreateRectRgn(50, 800 - 24 * 4, 100, 800 - 24 * 3);
+
+	RedrawWindow(hMenu, NULL, hRgn, 0);
+
+	SendMessage(hMenu, WM_PAINT, MAKEWPARAM(TRUE, 0),
+		MAKELPARAM(FALSE, 0));
 }
