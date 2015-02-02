@@ -18,6 +18,7 @@
 #include <vector>
 #include <XNAMath.h>
 #include <sstream>
+#include <iostream>
 
 
 // define the screen resolution
@@ -155,7 +156,6 @@ unsigned int cowVerts;
 std::wstring printText;
 
 HWND hMenu;
-
 
 // a struct to define the constant buffer
 
@@ -338,8 +338,9 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		frameTime = GetFrameTime();
 
-		printFPS();
+		std::cout << "FPS: " << frameTime;
 
+		printf("Hello, World!\n");
 		
 
 		if(!bRender && !pRender) RenderFrame();

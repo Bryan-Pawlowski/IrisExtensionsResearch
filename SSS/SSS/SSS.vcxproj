@@ -85,8 +85,10 @@
     <ClCompile Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.cpp" />
     <ClCompile Include="DXApp.cpp" />
     <ClCompile Include="IGFXExtensions\IGFXExtensionsHelper.cpp" />
+    <ClCompile Include="guicon.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="guicon.h" />
     <ClInclude Include="IGFXExtensions\ID3D10Extensions.h" />
     <ClInclude Include="IGFXExtensions\IGFXExtensionsHelper.h" />
     <ClInclude Include="OBJ-Loader.h" />

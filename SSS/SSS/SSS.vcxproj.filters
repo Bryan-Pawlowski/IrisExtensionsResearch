@@ -24,6 +24,9 @@
     <ClCompile Include="..\..\..\OBJ-File-Loader\OBJ-File-Loader\OBJ-File-Loader\OBJ-Loader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="guicon.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IGFXExtensions\IGFXExtensionsHelper.h">
@@ -33,6 +36,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="OBJ-Loader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="guicon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
