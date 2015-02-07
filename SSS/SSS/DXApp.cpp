@@ -18,7 +18,10 @@
 #include <vector>
 #include <XNAMath.h>
 #include <sstream>
+#include <string>
 #include <iostream>
+#include <D3DX11tex.h>
+#include "guicon.h"
 
 
 // define the screen resolution
@@ -29,28 +32,34 @@
 #define TEX_Z			256
 
 
-#define MODE_FROMLIGHT					0	//one render and show the scale of the depth from the lightsource.
-#define MODE_PERSP_LIGHTDEPTH			1	//two renders and show the light depth from second render.
-#define MODE_PERSP_SHOW_X				2	//two renders and show the x coordinates with respect to light.
-#define MODE_PERSP_SHOW_Y				4	//two renders and show the y coordinates with respect to light.
-#define MODE_PERSP_SHOW_X_AND_Y			6	//two renders and show the x and y coordinates with respect to light.
-#define MODE_PERSP_SHOW_ALPHA_SCALE		8	//two renders and show the scale of alpha as depth increases.
-#define MODE_PERSP_SHOW_FLAT_SCALE		16	//two renders and show just the flat colorchange without taking phone illumination into account.
-#define MODE_PERSP_SHOW_FINAL			32	//two renders and show the composite working image.
-#define MODE_SAMPLE						64	//custom sample on second render
-#define MODE_NO_SAMPLE					128	//no custom sample on second render
+#define MODE_FROMLIGHT					0		//one render and show the scale of the depth from the lightsource.
+#define MODE_PERSP_LIGHTDEPTH			1		//two renders and show the light depth from second render.
+#define MODE_PERSP_SHOW_X				2		//two renders and show the x coordinates with respect to light.
+#define MODE_PERSP_SHOW_Y				4		//two renders and show the y coordinates with respect to light.
+#define MODE_PERSP_SHOW_X_AND_Y			6		//two renders and show the x and y coordinates with respect to light.
+#define MODE_PERSP_SHOW_ALPHA_SCALE		8		//two renders and show the scale of alpha as depth increases.
+#define MODE_PERSP_SHOW_FLAT_SCALE		16		//two renders and show just the flat colorchange without taking phone illumination into account.
+#define MODE_PERSP_SHOW_FINAL			32		//two renders and show the composite working image.
+#define MODE_SAMPLE						64		//custom sample on second render
+#define MODE_NO_SAMPLE					128		//no custom sample on second render
 #define PHONG_RENDER					256
 #define	DIFFUSE_WRAP					512
 #define PIXSYNC_OFF						1024
+#define CULL_RENDER_MODE				2048	//two renders and show just the flat colorchange without taking phone illumination into account.
+#define CULL_RENDER_NOCULL				4096	//two renders and show the composite working image.
+#define CULL_RENDER_SHADER				8192	//custom sample on second render
+#define CULL_RENDER_HARDWARE			16384	//no custom sample on second render
 
 #define PAUSE_BUTTON					101	//Pause button identifier
 #define GOODBAD_BUTTON					102 //Good/bad render button identifier
 #define FLAT_BUTTON						103 //Checkbox for Showing flat illumination model (default).
 #define PHONG_BUTTON					104 //Checkbox for showing phong illumination model.
-#define REFRACT_BUTTON					105 //Checkbox for showing the refraction demo.
+#define CULL_BUTTON						105 //Checkbox for showing the refraction demo.
 #define SINGLEBOUNCE_BUTTON				106 //Checkbox for showing the simple raytrace.
 #define PIXELORDERTOGGLE_BUTTON			107 //Checkbox to toggle pixel ordering.
-#define AMB_TRACKBAR					108 //trackbar for phong ambient lighting
+#define NOCULL_BUTTON					108 //Checkbox for cull demo's no-cull
+#define HWCULL_BUTTON					109 //Checkbox for cull demo's hardware cull option.
+#define SCULL_BUTTON					110 //Checkbox for cull demo's shader cull option.
 
 #define MODEL_SPHERE					0
 #define MODEL_PAWN						0xFFFFFFFF
@@ -63,6 +72,9 @@ HWND hPhongButton;
 HWND hRefractButton;
 HWND hRTButton;
 HWND hPixOrderToggle;
+HWND hHWCullButton;
+HWND hNoCullButton;
+HWND hShadercullButton;
 HWND *currButton;
 HWND hKAmb;
 HWND hKDiff;
@@ -97,15 +109,18 @@ ID3D11Texture2D *pUAVTex;				// Our application-side definition of data stored i
 ID3D11Texture2D *pUAVDTex;
 ID3D11Texture2D *pUAVDTex2;
 ID3D11Texture2D *pUAVDTex3;
-ID3D11Texture2D *pVoxels;
-ID3D11Texture2D *p3DMask;
-ID3D11UnorderedAccessView *pVoxelUAV;
-ID3D11UnorderedAccessView *p3DUAV;
-ID3D11UnorderedAccessView *pVoxelUAVs[2];
+ID3D11Texture2D *cullDepth;
+ID3D11Texture2D *cullClearMask;
+ID3D11UnorderedAccessView *cullClearMaskUAV;
+ID3D11UnorderedAccessView *cullUAVs[2];
 ID3D11RenderTargetView *depthTexBuff;
 ID3D11ShaderResourceView *SRVs[4];
 ID3D11DepthStencilState * pDSState;
 ID3D11DepthStencilState * pDefaultState;
+
+/*Texture for Screenshot Functionality*/
+
+ID3D11Texture2D *texScreenShot;
 
 /*Following code for the skybox*/
 
@@ -133,6 +148,7 @@ double frameTime;
 /*End globals and prototypes for skybox*/
 
 ID3D11RenderTargetView *RTVs[2];
+//Second RTV is for rendering to texture. Used for getting the best quality of screenshots.
 
 // a struct to define a single vertex
 
@@ -144,11 +160,14 @@ ID3D11Buffer *pModelBuffer; //this model buffer can be stored within an object c
 
 
 D3DXVECTOR4 Light = D3DXVECTOR4(1.75f, 2.f, 1.25f, 1.0);
+D3DXCOLOR Ambient = D3DXCOLOR(0.2f, 0.75f, 0.5f, 1.0f);
 unsigned int displayMode = MODE_PERSP_SHOW_FLAT_SCALE; //how to render scene, and whether or not we will use sampling.
 unsigned int whichModel = MODEL_PAWN;
 bool rotate = false;
+bool screenshot = false;
 bool bRender = false;
 bool pRender = false;
+bool cRender = false;
 
 
 unsigned int cowVerts;
@@ -187,6 +206,7 @@ void InitD3D(HWND hWnd);			// sets up and initializes Direct3D
 void RenderFrame(void);				// renders a single frame, basic with just a quick depth-based shadow on the object.
 void BadRenderFrame(void);			// renders a single frame, but with the bad approach.
 void PhongRenderFrame(void);		// renders a single frame, with phong smoothing.
+void cullRenderFrame(void);			// renders a single frame, in demonstration of culling in the shader, hardware culling, and no culling.
 void CleanD3D(void);				// closes Direct3D and releases memory
 void InitGraphics(void);			// creates the shape to render
 void InitPipeline(void);			// loads and prepares the shaders
@@ -194,7 +214,7 @@ void RefractRender(void);			// set up render for refraction. This will support b
 void InitializeUAVs(void);			// UAVs get their own initializer now. There was too much to keep track of in the InitD3D() function.
 void RTRender(void);				// render call for the single bounce ray trace.
 void MakeMenu(HWND hWnd);			// create the menu for the
-void printFPS(void);
+void manageCullModes(unsigned int cullMode);
 
 void loadSkymap(void);
 
@@ -218,6 +238,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	HWND hWnd;
 	
 	WNDCLASSEX wc, menuWc;
+
+	RedirectIOToConsole(); //Get our console and IO set up for printing FPS output.
 
 	ZeroMemory(&wc, sizeof(WNDCLASSEX));
 
@@ -334,18 +356,51 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		{
 			fps = frameCount;
 			frameCount = 0;
+			std::cout << "FPS: " << fps << std::endl;
 			StartTimer();
 		}
 		frameTime = GetFrameTime();
 
-		std::cout << "FPS: " << frameTime;
-
-		printf("Hello, World!\n");
 		
-
-		if(!bRender && !pRender) RenderFrame();
-		else if(bRender) BadRenderFrame();
+		if(bRender) BadRenderFrame();
 		else if (pRender) PhongRenderFrame();
+		else if (cRender) cullRenderFrame();
+		else RenderFrame();
+
+		if (screenshot)
+		{
+			std::string myString;
+			std::cout << "Name your Screenshot: ";
+			std::cin >> myString;
+			std::cout << "you input: " << myString << std::endl;
+
+			ID3D11Texture2D* pBuffer;
+			swapchain->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID*)&pBuffer);
+
+			D3D11_TEXTURE2D_DESC td;
+			ID3D11Texture2D * texture_to_save;
+			pBuffer->GetDesc(&td);
+			
+			HRESULT res = dev->CreateTexture2D(&td, NULL, &texture_to_save);
+
+			if (res != S_OK)
+			{
+				MessageBox(HWND_DESKTOP, L"ScreenShot texture creation failed!", L"screenshot failed!", MB_OK);
+			}
+			else
+			{
+
+				devcon->CopyResource(texture_to_save, pBuffer);
+
+				HRESULT screenres = D3DX11SaveTextureToFile(devcon, texture_to_save, D3DX11_IFF_BMP, (LPCWSTR)myString.c_str());
+
+				if (screenres != S_OK)
+				{
+					std::cout << "screen print failed!" << screenres << std::endl;
+				}
+			}
+			screenshot = false;
+		}
 	}
 
 	// clean up DirectX and COM
@@ -472,13 +527,14 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 											  if (bRender == true)
 											  {
 												  pRender = false;
-												  Button_SetCheck(hPhongButton, false);
+												  cRender = false;
+												  manageCullModes(PHONG_RENDER);
 											  }
 											  
 					   }break;
 					   case PAUSE_BUTTON:
 					   {
-											rotate = !rotate;
+											screenshot = true;
 					   }break;
 					   case FLAT_BUTTON:
 					   {
@@ -494,12 +550,15 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					   } break;
 					   case PHONG_BUTTON:
 					   {
+											unsigned int cullFlip = (CULL_RENDER_MODE | CULL_RENDER_HARDWARE | CULL_RENDER_NOCULL | CULL_RENDER_SHADER);
 											pRender = !pRender;
 											
 											if (pRender == true)
 											{
 												bRender = false;
+												cRender = false;
 												Button_SetCheck(hGBButton, false);
+												manageCullModes(PHONG_RENDER);
 												displayMode = displayMode | PHONG_RENDER;
 											}
 											else
@@ -509,17 +568,25 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 
 					   }break;
-					   case REFRACT_BUTTON:
+					   case CULL_BUTTON:
 					   {
+
+											
+										   cRender = !cRender;
+										   if (cRender)
+										   {
+											   bRender = false;
+											   pRender = false;
+											   Button_SetCheck(hGBButton, false);
+											   Button_SetCheck(hPhongButton, false);
+											   manageCullModes(CULL_RENDER_MODE);
+											   displayMode = displayMode & ~PHONG_RENDER;
+										   }
 											  if (Button_GetCheck(hRefractButton) == false)
 											  {
 												  Button_SetCheck(hRefractButton, true);
 												  break;
 											  }
-
-											  Button_SetCheck(*currButton, false);
-
-											  currButton = &hRefractButton;
 					   }break;
 					   case SINGLEBOUNCE_BUTTON:
 					   {
@@ -537,19 +604,31 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 													   }
 													   else displayMode = displayMode | PIXSYNC_OFF;
 					   }
+					   case NOCULL_BUTTON:
+					   {
+											 if (cRender) manageCullModes(CULL_RENDER_NOCULL);
+											 else{
+												 Button_SetCheck(hNoCullButton, false);
+											 }
+
+					   }break;
+					   case HWCULL_BUTTON:
+					   {
+											 if (cRender) manageCullModes(CULL_RENDER_HARDWARE);
+											 else{
+												 Button_SetCheck(hHWCullButton, false);
+											 }
+					   }break;
+					   case SCULL_BUTTON:
+					   {
+											 if (cRender) manageCullModes(CULL_RENDER_SHADER);
+											 else{
+												 Button_SetCheck(hShadercullButton, false);
+											 }
+					   }break;
 					   default:
 						   break;
 					   }
-	}break;
-	case WM_PAINT:
-	{
-					 PAINTSTRUCT ps;
-					 HDC hDC;
-					 unsigned int len = printText.length();
-					 hDC = BeginPaint(hWnd, &ps);
-					 FillRect(hDC, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-					 TextOut(hDC, 50, 800-24*4, printText.c_str(), len);
-					 EndPaint(hWnd, &ps);
 	}break;
 	default:
 		break;
@@ -651,27 +730,8 @@ void InitD3D(HWND hWnd)
 
 	pBackBuffer->Release();
 
-	/*--------------------------Skymap texture load--------------------------*/
 
-	D3DX11_IMAGE_LOAD_INFO loadSMInfo;
-	loadSMInfo.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
-
-	ID3D11Texture2D* SMTexture = 0;
-	HRESULT hr = D3DX11CreateTextureFromFile(dev, L"skymap.dds",
-		&loadSMInfo, 0, (ID3D11Resource **)&SMTexture, 0);
-
-	D3D11_TEXTURE2D_DESC SMTextureDesc;
-	SMTexture->GetDesc(&SMTextureDesc);
-
-	D3D11_SHADER_RESOURCE_VIEW_DESC SMViewDesc;
-	SMViewDesc.Format = SMTextureDesc.Format;
-	SMViewDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
-	SMViewDesc.TextureCube.MipLevels = SMTextureDesc.MipLevels;
-	SMViewDesc.TextureCube.MostDetailedMip = 0;
-
-	hr = dev->CreateShaderResourceView(SMTexture, &SMViewDesc, &smrv);
-
-	/*-----------------------End Skymap Texture Load-------------------------*/
+	
 
 	InitPipeline();
 	InitGraphics();
@@ -683,9 +743,9 @@ void RenderFrame(void)
 
 	cBuffer.LightVector = Light;
 	//cBuffer.LightColor = D3DXCOLOR(0.29f, 0.29f, 0.29f, 1.0f);
-	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
 	//cBuffer.AmbientColor = D3DXCOLOR(0.05f, 0.25f, 0.15f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.AmbientColor = Ambient;
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
@@ -733,7 +793,7 @@ void RenderFrame(void)
 	cBuffer.modelView = matView;
 
 	// clear the back buffer to a deep blue
-	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 
 	// clear the depth buffer
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -773,7 +833,7 @@ void RenderFrame(void)
 
 	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
 
-	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 
 	//devcon->DrawIndexed(36, 0, 0);
 	if (whichModel == MODEL_PAWN)
@@ -812,7 +872,7 @@ void RenderFrame(void)
 
 		devcon->RSSetState(EnableCull);
 		devcon->OMSetDepthStencilState(pDefaultState, 1);
-		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 		devcon->PSSetShader(pPS2, 0, 0);
@@ -833,6 +893,10 @@ void RenderFrame(void)
 	// switch the back buffer and the front buffer
 	swapchain->Present(0, 0);
 }
+
+
+
+
 // this is the function that cleans up Direct3D and COM
 void CleanD3D(void)
 {
@@ -857,15 +921,8 @@ void CleanD3D(void)
 	dev->Release();
 	devcon->Release();
 
-	//skybox cleanup
-	//sphereIndexBuffer->Release();
-	sphereVertBuffer->Release();
-
-	//SKYMAP_PS->Release();
-	//SKYMAP_VS->Release();
-	//SKYMAP_VS_BUFFER->Release();
-	//SKYMAP_PS_BUFFER->Release();
-
+	cullClearMask->Release();
+	cullUAVs[0]->Release();
 }
 // this is the function that creates the shape to render
 void InitGraphics(void)
@@ -1212,8 +1269,8 @@ void BadRenderFrame(void)
 	CBUFFER cBuffer;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
+	cBuffer.AmbientColor = Ambient;
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
@@ -1263,7 +1320,7 @@ void BadRenderFrame(void)
 	cBuffer.modelView = matView;
 
 	// clear the back buffer to a deep blue
-	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 
 	// clear the depth buffer
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -1315,7 +1372,7 @@ void BadRenderFrame(void)
 
 		devcon->RSSetState(EnableCull);
 		devcon->OMSetDepthStencilState(pDefaultState, 1);
-		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+		devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 		devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 		devcon->PSSetShader(pBPS2, 0, 0);
@@ -1332,66 +1389,6 @@ void BadRenderFrame(void)
 void InitializeUAVs(void)
 {
 	//create UAV texture.  If you want the texture to be a part of a UAV resource, it MUST look like this.
-
-	
-	D3D11_TEXTURE2D_DESC tdsc;
-	ZeroMemory(&tdsc, sizeof(tdsc));
-	tdsc.Width = SCREEN_WIDTH;
-	tdsc.Height = SCREEN_HEIGHT;
-	tdsc.ArraySize = 181;
-	tdsc.SampleDesc.Count = 1;
-	tdsc.SampleDesc.Quality = 0;
-	tdsc.MipLevels = 1;
-	tdsc.Usage = D3D11_USAGE_DEFAULT;
-	tdsc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	tdsc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
-	
-
-	HRESULT r = dev->CreateTexture2D(&tdsc, NULL, &pVoxels);
-
-	if (r != S_OK) MessageBox(HWND_DESKTOP, L"3D Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-
-	D3D11_UNORDERED_ACCESS_VIEW_DESC uvoxdsc;
-
-	uvoxdsc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
-	uvoxdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
-	uvoxdsc.Texture2DArray.ArraySize = 181;
-	uvoxdsc.Texture2DArray.MipSlice = 0;
-	uvoxdsc.Texture2DArray.FirstArraySlice = 0;
-
-	HRESULT uvoxres = dev->CreateUnorderedAccessView(pVoxels, &uvoxdsc, &pVoxelUAVs[0]);
-
-	if (uvoxres != S_OK)MessageBox(HWND_DESKTOP, L"Voxel UAV creation unsuccessful", L"Arguments invalid", MB_OK);
-
-	D3D11_TEXTURE2D_DESC tmdsc;
-	ZeroMemory(&tmdsc, sizeof(tmdsc));
-	tmdsc.Width = SCREEN_WIDTH;
-	tmdsc.Height = SCREEN_HEIGHT;
-	tmdsc.ArraySize = 181;
-	tmdsc.SampleDesc.Count = 1;
-	tmdsc.SampleDesc.Quality = 0;
-	tmdsc.MipLevels = 1;
-	tmdsc.Usage = D3D11_USAGE_DEFAULT;
-	tmdsc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	tmdsc.Format = DXGI_FORMAT_R32_UINT;
-
-	r = dev->CreateTexture2D(&tmdsc, NULL, &p3DMask);
-
-	if (r != S_OK) MessageBox(HWND_DESKTOP, L"3D Texture Creation Unsuccessful!", L"Texture Error!", MB_OK);
-
-	D3D11_UNORDERED_ACCESS_VIEW_DESC uavdsc;
-
-	uavdsc.Format = DXGI_FORMAT_R32_UINT;
-	uavdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
-	uavdsc.Texture2DArray.MipSlice = 0;
-	uavdsc.Texture2DArray.ArraySize = 181;
-	uavdsc.Texture2DArray.FirstArraySlice = 0;
-
-	HRESULT uRes = dev->CreateUnorderedAccessView(p3DMask, &uavdsc, &pVoxelUAVs[1]);
-
-	if (uRes != S_OK) MessageBox(HWND_DESKTOP, L"3D UAV Creation Unsuccessful!", L"Texture Error!", MB_OK);
-
-
 
 	D3D11_TEXTURE2D_DESC texDesc;
 	ZeroMemory(&texDesc, sizeof(texDesc));
@@ -1507,6 +1504,75 @@ void InitializeUAVs(void)
 		MessageBox(HWND_DESKTOP, L"Our UAV view was not successful...", L"UAV Error!", MB_OK);
 		exit(EXIT_FAILURE);
 	}
+
+	D3D11_TEXTURE2D_DESC cmTexDesc;
+	ZeroMemory(&cmTexDesc, sizeof(cmTexDesc));
+	cmTexDesc.Width = SCREEN_WIDTH;
+	cmTexDesc.Height = SCREEN_HEIGHT;
+	cmTexDesc.MipLevels = 1;
+	cmTexDesc.ArraySize = 1;
+	cmTexDesc.SampleDesc.Count = 1;
+	cmTexDesc.SampleDesc.Quality = 0;
+	cmTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	cmTexDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	cmTexDesc.Format = DXGI_FORMAT_R32_UINT;
+	
+	texRes = dev->CreateTexture2D(&cmTexDesc, NULL, &cullClearMask);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Could not create the clear mask texture for cull demo!", L"Clear Mask error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	D3D11_UNORDERED_ACCESS_VIEW_DESC cmUAVdsc;
+
+	cmUAVdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	cmUAVdsc.Format = DXGI_FORMAT_R32_UINT;
+	cmUAVdsc.Texture2D.MipSlice = 0;
+
+	texRes = dev->CreateUnorderedAccessView(cullClearMask, &cmUAVdsc, &cullUAVs[0]);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Could not create the UAV for the clear mask for cull demo!", L"Clear Mask error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+	ZeroMemory(&cmTexDesc, sizeof(cmTexDesc));
+	cmTexDesc.Width = SCREEN_WIDTH;
+	cmTexDesc.Height = SCREEN_HEIGHT;
+	cmTexDesc.MipLevels = 1;
+	cmTexDesc.ArraySize = 1;
+	cmTexDesc.SampleDesc.Count = 1;
+	cmTexDesc.SampleDesc.Quality = 0;
+	cmTexDesc.Usage = D3D11_USAGE_DEFAULT;
+	cmTexDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	cmTexDesc.Format = DXGI_FORMAT_R32_FLOAT;
+
+	texRes = dev->CreateTexture2D(&cmTexDesc, NULL, &cullDepth);
+	
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Could not create the depth texture for cull demo!", L"Clear Mask error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+
+	ZeroMemory(&cmUAVdsc, sizeof(cmUAVdsc));
+	cmUAVdsc.Format = DXGI_FORMAT_R32_FLOAT;
+	cmUAVdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+	cmUAVdsc.Texture2D.MipSlice = 0;
+
+	texRes = dev->CreateUnorderedAccessView(cullDepth, &cmUAVdsc, &cullUAVs[1]);
+
+	if (texRes != S_OK)
+	{
+		MessageBox(HWND_DESKTOP, L"Could not create the depth texture for cull demo!", L"Clear Mask error!", MB_OK);
+		exit(EXIT_FAILURE);
+	}
+
+
 }
 
 void MakeMenu(HWND hWnd)
@@ -1544,7 +1610,7 @@ void MakeMenu(HWND hWnd)
 	hPauseButton = CreateWindowEx(
 		NULL,
 		L"BUTTON",
-		L"PAUSE/UNPAUSE",
+		L"Take Screenshot",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
 		200,
 		800 - 24*3,
@@ -1603,14 +1669,14 @@ void MakeMenu(HWND hWnd)
 	hRefractButton = CreateWindowEx(
 		NULL,
 		L"BUTTON",
-		L"Refract",
+		L"Cull Demo",
 		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
 		50,
 		60,
 		100,
 		24,
 		hWnd,
-		(HMENU)REFRACT_BUTTON,
+		(HMENU)CULL_BUTTON,
 		GetModuleHandle(NULL),
 		NULL);
 
@@ -1651,6 +1717,60 @@ void MakeMenu(HWND hWnd)
 		NULL);
 
 	SendMessage(hPixOrderToggle, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hNoCullButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"No Cull",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		50,
+		100,
+		100,
+		24,
+		hWnd,
+		(HMENU)NOCULL_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hNoCullButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hHWCullButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Hardware Cull",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		50,
+		140,
+		100,
+		24,
+		hWnd,
+		(HMENU)HWCULL_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hHWCullButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hShadercullButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Shader Cull",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		50,
+		180,
+		100,
+		24,
+		hWnd,
+		(HMENU)SCULL_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hShadercullButton, WM_SETFONT,
 		(WPARAM)hfDefault,
 		MAKELPARAM(FALSE, 0));
 
@@ -1830,8 +1950,8 @@ void RTRender(void)
 	CBUFFER cBuffer;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
+	cBuffer.AmbientColor = Ambient;
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
@@ -1895,8 +2015,8 @@ void PhongRenderFrame(void)
 	UINT offset = 0;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(0.5f, 0.5f, 0.5f, 1.0f);
-	cBuffer.AmbientColor = D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
+	cBuffer.AmbientColor = Ambient;
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
 
@@ -1927,7 +2047,7 @@ void PhongRenderFrame(void)
 	devcon->RSSetState(EnableCull);
 	devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
 
-	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1948,6 +2068,85 @@ void PhongRenderFrame(void)
 	swapchain->Present(0, 0);
 
 }
+
+void cullRenderFrame(void)
+{
+	CBUFFER cBuffer;
+
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+
+	cBuffer.LightVector = Light;
+	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
+	cBuffer.AmbientColor = Ambient;
+	cBuffer.LightPos = Light;
+	cBuffer.mode = displayMode;
+
+	D3DXMATRIX matRotate, matView, matProjection;
+	D3DXMATRIX matFinal;
+
+	devcon->VSSetShader(pVS2, 0, 0);
+	devcon->PSSetShader(pPS2, 0, 0);
+
+	static float time = 0.0f;
+
+	if (rotate) time += .02;
+
+	D3DXMatrixRotationY(&matRotate, time);
+
+	D3DXMatrixLookAtLH(&matView,
+		&D3DXVECTOR3(-10.0f, 10.0f, -6.0f),   // the camera position
+		&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
+		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
+
+	D3DXMatrixPerspectiveFovLH(&matProjection,
+		(FLOAT)D3DXToRadian(45),                    // field of view
+		(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
+		1.0f,                                       // near view-plane
+		100.0f);
+
+
+	cBuffer.Rotation = matRotate;
+	cBuffer.Final = matRotate * matView * matProjection;
+	cBuffer.modelView = matView;
+
+	
+	if (displayMode & CULL_RENDER_HARDWARE){
+		devcon->RSSetState(EnableCull);
+		devcon->OMSetDepthStencilState(pDefaultState, 1);
+	}else{
+		devcon->RSSetState(DisableCull);
+		devcon->OMSetDepthStencilState(pDSState, 1);
+		if (displayMode & CULL_RENDER_SHADER) {
+			devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], zbuffer, 5, 2, &cullUAVs[0], NULL);
+			const unsigned int iClear[4] = { 0, 0, 0, 0 };
+			const float fClear[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+			devcon->ClearUnorderedAccessViewUint(cullUAVs[0], iClear);
+			devcon->ClearUnorderedAccessViewFloat(cullUAVs[1], fClear);
+		} else devcon->OMSetRenderTargets(1, &RTVs[0], zbuffer);
+	}
+	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
+	devcon->ClearDepthStencilView(zbuffer, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
+
+	if (whichModel == MODEL_PAWN)
+	{
+		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
+		devcon->Draw(cowVerts, 0);
+	}
+	else
+	{
+		devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+		devcon->Draw(NumSphereVertices, 0);
+	}
+
+	swapchain->Present(0, 0);
+
+}
+
 
 void StartTimer(void)
 {
@@ -1982,16 +2181,62 @@ double GetFrameTime()
 	return float(tickCount) / countsPerSecond;
 }
 
-void printFPS(void)
+void manageCullModes(unsigned int cullMode)
 {
-	std::wostringstream printString;
-	printString << "FPS: " << fps;
+	unsigned int bitSet;
+	if (cullMode < CULL_RENDER_MODE) //this means we unset the cull render mode
+	{
+		bitSet = (CULL_RENDER_MODE | CULL_RENDER_HARDWARE | CULL_RENDER_NOCULL | CULL_RENDER_SHADER);
+		displayMode = displayMode & ~(bitSet);
 
-	printText = printString.str();
-	HRGN hRgn = CreateRectRgn(50, 800 - 24 * 4, 100, 800 - 24 * 3);
+		Button_SetCheck(hRefractButton, false);
+		Button_SetCheck(hNoCullButton, false);
+		Button_SetCheck(hShadercullButton, false);
+		Button_SetCheck(hHWCullButton, false);
+		return;
+	}
 
-	RedrawWindow(hMenu, NULL, hRgn, 0);
+	switch (cullMode){
+		case CULL_RENDER_MODE: //just set the display mode and default to no culling.
+		{
+									bitSet = (CULL_RENDER_HARDWARE | CULL_RENDER_SHADER);
+									displayMode = displayMode & ~bitSet;
 
-	SendMessage(hMenu, WM_PAINT, MAKEWPARAM(TRUE, 0),
-		MAKELPARAM(FALSE, 0));
+									bitSet = (CULL_RENDER_MODE | CULL_RENDER_NOCULL);
+									displayMode = displayMode | bitSet;
+									Button_SetCheck(hNoCullButton, true);
+		}break;
+		case CULL_RENDER_HARDWARE:
+		{
+									bitSet = (CULL_RENDER_NOCULL | CULL_RENDER_SHADER); //unset the other two modes.
+									displayMode = displayMode & ~bitSet;
+
+									displayMode = displayMode | CULL_RENDER_HARDWARE; //set new render mode.
+									Button_SetCheck(hShadercullButton, false);
+									Button_SetCheck(hNoCullButton, false);
+
+		}break;
+		case CULL_RENDER_SHADER:
+		{
+									bitSet = (CULL_RENDER_NOCULL | CULL_RENDER_HARDWARE);
+									displayMode = displayMode & ~bitSet;
+
+									displayMode = displayMode | CULL_RENDER_SHADER;
+									Button_SetCheck(hHWCullButton, false);
+									Button_SetCheck(hNoCullButton, false);
+		}break;
+		case CULL_RENDER_NOCULL:
+		{
+									bitSet = (CULL_RENDER_SHADER | CULL_RENDER_HARDWARE);
+									displayMode = displayMode & ~bitSet;
+
+									displayMode = displayMode | CULL_RENDER_NOCULL;
+									Button_SetCheck(hHWCullButton, false);
+									Button_SetCheck(hShadercullButton, false);
+		}break;
+		default:
+			break;
+	}
+
+	
 }

@@ -8,6 +8,11 @@
 #define PHONG_RENDER	256
 #define INVERT			1
 
+#define CULL_RENDER_MODE				2048	//two renders and show just the flat colorchange without taking phone illumination into account.
+#define CULL_RENDER_NOCULL				4096	//two renders and show the composite working image.
+#define CULL_RENDER_SHADER				8192	//custom sample on second render
+#define CULL_RENDER_HARDWARE			16384	//no custom sample on second render
+
 #define SHININESS		1.0
 
 cbuffer ConstantBuffer
@@ -164,13 +169,36 @@ float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 }
 
 
+RWTexture2D<uint> clearMask	:	register(u5);
+RWTexture2D<float> cDepth	:	register(u6);
 
 
 float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 position : POSITIONT, float2 UVs : UV, float4 norm : NORMAL, float4 camera : CAMERA,
 	float3 lightVec : NORMAL1, float4 lightCol : COLOR1, uint mode : MODE, float4 rotNorm : NORMAL2, float3 eyeVec : NORMAL3) : SV_TARGET
 {
+
+	if ((mode & CULL_RENDER_MODE) && (mode & CULL_RENDER_SHADER))
+	{
+		IntelExt_Init();
+		IntelExt_BeginPixelShaderOrdering();
+
+
+		uint2 pixAddr = svposition.xy;
+		
+			clearMask[pixAddr]++;
+		switch (clearMask[pixAddr]){
+		case 1:
+			cDepth[pixAddr] = svposition.z;
+			break;
+		default:
+			if (cDepth[pixAddr] < svposition.z) discard;
+			break;
+		}
+
+	}
+	
 	uint2 uv = UVs;
-	float wrap = 0.6;
+	float wrap = 0.4;
 	float scatterWidth = 0.3;
 	float4 scatterColor = color;
 
@@ -212,9 +240,16 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 		float shallow = Shallow[lightCoords];
 
-		if ((mode & PIXSYNC_OFF) && (uvDepth[uv] > Shallow[lightCoords])) diffuse -= (mdepth - shallow) * 1.5;
+		if ((mode & PIXSYNC_OFF) && (uvDepth[uv] > Shallow[lightCoords])){
+
+			float4 lColor = lightcol;
+			lColor -= (uvDepth[uv] - Shallow[lightCoords]) * 3;
+			diffuse += lColor;
+		}
 	}
 
-	color = float4(ambient.rgb + diffuse.rgb + specular.rgb, 1.);
+	
+
+	color.xyz = float3(ambient.rgb + diffuse.rgb + specular.rgb);
 		return color;
 }
