@@ -66,7 +66,7 @@ VOut VShader(float4 position : POSITION, float4 normal : NORMAL, float2 texCoord
 	// calculate the diffuse light and add it to the ambient light
 	float4 norm1 = normalize(mul(rotation, normal));
 	float diffusebrightness = saturate(dot(norm1, lightvec));
-	float4 norm = normalize(mul(final, normal));
+	float4 norm = normalize(mul(rotation, normal));
 
 	//output.color += lightcol * diffusebrightness;
 
@@ -105,7 +105,7 @@ VOut VShader2(float4 position : POSITION, float4 normal : NORMAL, float2 texCoor
 	// calculate the diffuse light and add it to the ambient light
 	float4 norm1 = normalize(mul(rotation, normal));
 		float diffusebrightness = saturate(dot(norm1, lightvec));
-	float4 norm = normalize(mul(final, normal));
+	float4 norm = normalize(mul(rotation, normal));
 
 	//output.color += lightcol * diffusebrightness;
 
@@ -212,13 +212,13 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	Eye = normalize(eyeVec);
 
 	//set ambient
-	float4 ambient = color * .6;
+	float4 ambient = color * .25;
 
 		//set diffuse
 	float d; 
 	if(mode & DIFFUSE_WRAP) d = max((dot(Normal, Light) + wrap) / (1 + wrap), 0);
 	else d = max(dot(Normal, Light), 0);
-	float4 diffuse = 2 * d * color;
+	float4 diffuse = d * color;
 
 	float s = 0.;
 
@@ -227,7 +227,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 		float3 ref = normalize(2. * Normal * dot(Normal, Light) - Light);
 			s = pow(max(dot(Eye, ref), 0), 500);
 	}
-	float4 specular = 2.5 * s * lightCol;
+	float4 specular = s * lightCol;
 
 	if (!(mode & PHONG_RENDER))
 	{

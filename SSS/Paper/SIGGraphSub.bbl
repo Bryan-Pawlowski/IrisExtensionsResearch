@@ -1,0 +1,43 @@
+% $ biblatex auxiliary file $
+% $ biblatex version 2.4 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\entry{GPUGems}{book}{}
+  \name{author}{1}{}{%
+    {{}%
+     {Fernando}{F.}%
+     {Randima}{R.}%
+     {}{}%
+     {}{}}%
+  }
+  \list{publisher}{1}{%
+    {Addison-Wesley Professional}%
+  }
+  \strng{namehash}{FR1}
+  \strng{fullhash}{FR1}
+  \field{sortinit}{F}
+  \field{chapter}{16}
+  \field{title}{GPU Gems: Programming Techniques, Tips and Tricks for Real-Time
+  Graphics}
+  \field{month}{04}
+  \field{year}{2004}
+\endentry
+
+\lossort
+\endlossort
+
+\endinput

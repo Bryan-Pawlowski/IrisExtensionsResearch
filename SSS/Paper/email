@@ -1,0 +1,13 @@
+Hello!
+
+Firstly, I'd like to say what a pleasure it was to have met and talked with you last night. I'm happy that you took the time to hear about my project and ask thoughtful questions about my work, so thank you very much!
+
+At the end of our interaction yesterday, you asked me to think about a design of a universally accessible watch. To be honest, it's a loaded question as there are many, many factors to consider when designing a universally accessible product. Along with producing a watch with enough features to be universally accessible, we must try to keep things as simple as possible, because, as you said, "At Apple, we care about simplicity." As such, I would like to first consider the number of disabilities that should be considered when designing a watch, present solutions both pre-existing and theoretical, and then a handful of suggestions on how to combine these solutions in a way that is simplistic, yet universally accessible and unobtrusive to anybody nearby.
+
+To start a design, we first need to consider how humans take in knowledge or information about the world around them. In this case, the 5 senses are a great place to start:
+Sight
+Smell
+Touch
+Hearing
+Tasting
+Of these senses, we should consider which are feasible to convey time values, which strikes smelling and tasting off of our list of eligible senses. Now, we have sight, touch and hearing. Given the constraint that the watch must be unobtrusive, any audible information coming from the watch would not be ideal. After culling back our list of available senses, we are left with sight and touch. Now, we must consider the possibility of a watch that is both visual and tactile.

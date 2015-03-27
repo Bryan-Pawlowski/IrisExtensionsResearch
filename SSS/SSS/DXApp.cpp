@@ -776,8 +776,7 @@ void RenderFrame(void)
 	devcon->OMSetDepthStencilState(pDSState, 1);
 
 	// create a world matrices
-	D3DXMatrixRotationY(&matRotate, Time);
-
+	D3DXMatrixRotationY(&matRotate, 0 - Time);
 	// create a view matrix
 	D3DXMatrixLookAtLH(&matView,
 		&D3DXVECTOR3(Light.x, Light.y, Light.z),   // the camera position // - pass 1: change name of "Camera" to "Light"
@@ -787,10 +786,21 @@ void RenderFrame(void)
 	// create a projection matrix
 	D3DXMatrixOrthoLH(&matProjection, 10, 10, -5, 5);
 		
+	D3DXMATRIX Final, Rotation, modelView, cFinal, cRotation, cModelView;
+
+	Final = matRotate * matView * matProjection;
+	Rotation = matRotate;
+	modelView = matView;
+
+	//D3DXMatrixTranspose(&cFinal, &Final);
+	//D3DXMatrixTranspose(&cRotation, &Rotation);
+	//D3DXMatrixTranspose(&cModelView, &modelView);
+
+
 	// load the matrices into the constant buffer
-	cBuffer.Final = matRotate * matView * matProjection;
-	cBuffer.Rotation = matRotate;
-	cBuffer.modelView = matView;
+	cBuffer.Final = Final;
+	cBuffer.Rotation = Rotation;
+	cBuffer.modelView = modelView;
 
 	// clear the back buffer to a deep blue
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
@@ -862,7 +872,6 @@ void RenderFrame(void)
 			(FLOAT)SCREEN_WIDTH / (FLOAT)SCREEN_HEIGHT, // aspect ratio
 			1.0f,                                       // near view-plane
 			100.0f);
-
 		// load the matrices into the constant buffer
 		cBuffer.Final = matRotate * matView * matProjection;
 		cBuffer.Rotation = matRotate;
@@ -1001,7 +1010,7 @@ void InitGraphics(void)
 	//load sphere model for skybox
 
 	Model *sphereModel = (Model *)malloc(sizeof(Model));
-	int res2 = sphereModel->modelInit("sphere.obj");
+	int res2 = sphereModel->modelInit("bunny010n.obj");
 	if (!res2){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -1303,7 +1312,7 @@ void BadRenderFrame(void)
 	devcon->OMSetDepthStencilState(pDSState, 1);
 
 	// create a world matrices
-	D3DXMatrixRotationY(&matRotate, Time);
+	D3DXMatrixRotationY(&matRotate, 0 - Time);
 
 	// create a view matrix
 	D3DXMatrixLookAtLH(&matView,
@@ -1336,7 +1345,7 @@ void BadRenderFrame(void)
 	devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 
 	// select which primtive type we are using
-	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// draw the Hypercraft
 	devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
@@ -1960,11 +1969,11 @@ void RTRender(void)
 
 	const float fClear[4] = { -1.f, -1.f, -1.f, -1.f };
 	const float dfClear[4] = { 100.f, 100.f, 100.f, 100.f };
-	devcon->ClearUnorderedAccessViewFloat(pUAV[0], dfClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[1], dfClear);
+	//devcon->ClearUnorderedAccessViewFloat(pUAV[0], dfClear);
+	//devcon->ClearUnorderedAccessViewFloat(pUAV[1], dfClear);
 
-	devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
+	//devcon->ClearUnorderedAccessViewFloat(pUAV[2], fClear);
+	//devcon->ClearUnorderedAccessViewFloat(pUAV[3], fClear);
 	static float Time = 0.0f;
 
 	D3DXMatrixIdentity(&matRotate);
