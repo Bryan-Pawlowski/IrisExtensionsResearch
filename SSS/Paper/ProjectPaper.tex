@@ -758,10 +758,9 @@ entirety of this project. Firstly, I'd like to touch on the performance
 metrics of my project, and compare how it stacks up with existing algorithms,
 performance-wise, and also give a side-by-side comparison of the output images
 to show whether or not utilizing pixel synchronization to simulate a depth-
-based technique, such as a Subsurface Scattering approximation is worth it.
-
-Following performance metrics, I will write about my observations of how the
-hardware, itself works, UAVs, and how they work, and then small coding
+based technique, such as a Subsurface Scattering approximation is worth it. \\
+\\ Following performance metrics, I will write about my observations of how
+the hardware, itself works, UAVs, and how they work, and then small coding
 oddities I found along my way toward my finishing my project. Included will be
 photos demonstrating behavior, along with explanations and recommendations on
 how to deal with these issues. The following sections are key to knowing how
@@ -773,7 +772,19 @@ this section should save time on the setup and boilerplate side of things.
 \label{section:findings}
 \subsubsection{Raw Performance Check of Pixel Synchronization}
 
-\lipsum[22-23]
+When just using pixel synchronization, the performance takes a 10\% hit,
+regardless of model's resolution. This makes sense, since the pixel
+synchronization happens after the the primitive assembly and interpolation
+stage. To get as accurate of a measurment as possible, I disabled culling,
+such that every vertex of the model that is within the view volume is
+rendered. \\ \\ This metric is consistent with the documentation that intel
+provides, discussing pixel synchronization. This test was also run with the
+critical section containing the entirety of the pixel shader, which was the
+pixel shader stage of the Phong illumination technique. Phong illumination was
+chosen for this test, due to ease of programming, and knowing that the
+illumination was as correct as possible. See the figure below for comparisons.
+The graph is organized by model, complete with listing the resolution of the
+model (how many vertices), the frames per second performance of each model.
 
 \subsubsection{Subsurface Scattering}
 
@@ -785,19 +796,237 @@ this section should save time on the setup and boilerplate side of things.
 
 \subsection{Observations}
 
-\subsubsection{Unordered Access Views}
+\subsubsection{Creating and Using Unordered Access Views}
 \label{section:UAVs}
 
-\lipsum[54-59]
+When using pixel synchronization, Unordered Access Views (UAVs) are key to
+allowing a programmer to get all he or she can out of the pixel synch
+capability. UAVs are set up to use on the application side, and can be used on
+the GPU side after certain specifications are made. Firstly, we must create
+and define the UAV on the application side of our program. \\ \\ We first
+create a texture for our UAV on the application side. To create our texture,
+we have to create a description to send to the system, then create a texture
+by that description (fig. \ref{code:texDesc}). Notice in the code on line 10,
+we populate a member of \textbf{texDesc} called \textbf{BindFlags}, and
+specify that this texture will be used for unordered access. The population of
+this flag does not mean the UAV will be set up and ready for use. \\ \\ We
+must map a UAV instance to that texture (fig. \ref{code:mapUAVtoTex}). We must
+first describe the instance of the UAV to the program. We do this in a very
+similar way to how we described our texture. However the description structure
+is now of type \textbf{D3D11\_UNORDERED\_ACCESS\_VIEW\_DESC} instead of
+\textbf{D3D11\_TEXTURE2D\_DESC}. As a quick note, the texture description can
+be interchangeable among \textbf{D3D11\_TEXTURE1D\_DESC},
+\textbf{D3D11\_TEXTURE2D\_DESC} or \textbf{D3D11\_TEXTURE3D\_DESC}\; you must
+make sure that the dimension of the UAV description matches what you have
+described and created for your texture. If no error occurs after executing the
+code in figure \ref{code:mapUAVtoTex}, then we are only a couple of small, yet
+key, steps to utilizing UAVs within our code.
+
+\begin{figure}[h]
+\begin{lstlisting}[language=C++]
+D3D11_TEXTURE2D_DESC texDesc;
+ZeroMemory(&texDesc, sizeof(texDesc));
+texDesc.Width = SCREEN_WIDTH;
+texDesc.Height = SCREEN_HEIGHT;
+texDesc.MipLevels = 1;
+texDesc.ArraySize = 1;
+texDesc.SampleDesc.Count = 1;
+texDesc.SampleDesc.Quality = 0;
+texDesc.Usage = D3D11_USAGE_DEFAULT;
+texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+texDesc.Format = DXGI_FORMAT_R32_FLOAT;
+
+//We then use our description to create our texture.
+
+HRESULT texRes = 
+  dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
+if (texRes != S_OK)
+{
+	MessageBox(HWND_DESKTOP, 
+		  L"Texture Creation Unsuccessful!", 
+		  L"Texture Error!", MB_OK);
+	exit(EXIT_FAILURE);
+}
+
+//We always have a hook to check if our 
+//device-side calls were successful.
+
+\end{lstlisting}
+\caption{Describing and creating the 2D texture that we will use for our UAV.}
+\label{code:texDesc}
+\end{figure}
+
+%------------------------------------------------------------------------------
+
+\begin{figure}[h]
+\begin{lstlisting}[language=C++]
+D3D11_UNORDERED_ACCESS_VIEW_DESC UAVdesc;
+ZeroMemory(&UAVdesc, sizeof(UAVdesc));
+
+UAVdesc.Format = DXGI_FORMAT_R32_FLOAT;
+UAVdesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+UAVdesc.Texture2D.MipSlice = 0;
+
+HRESULT UAVRes = 
+	dev->CreateUnorderedAccessView(pUAVTex, 
+		&UAVdesc, &pUAV[1]);
+
+if (UAVRes != S_OK){
+	MessageBox(HWND_DESKTOP, 
+		L"Our UAV view was not successful...", 
+		L"UAV Error!", MB_OK);
+	exit(EXIT_FAILURE);
+}
+\end{lstlisting}
+\caption{Mapping our UAV to the texture we created in figure \ref{code:texDesc}}
+\label{code:mapUAVtoTex}
+\end{figure}
+
+\noindent \\ \\  Now that we have a texture created, and a UAV instance bound
+to that texture, we must now tell the GPU when we want to utilize the UAV and
+where exactly we want that UAV to be mapped, register wise, on the GPU side.
+We do this by making a call to the GPU to not only set the render target, but
+also the UAVs tied to this render pass. So, we change the set render target
+call, as shown in figure \ref{code:setRTV}.
+
+\begin{figure}[h]
+\begin{lstlisting}[language=C++]
+//we change from this call...
+devcon->OMSetRenderTargets(
+		numTargets, 
+		&RenderTargetViews, 
+		DepthBuffer);
+
+//...to this call...
+devcon->OMSetRenderTargetsAndUnorderedAccessViews(
+		numTargets,
+		&RenderTargetViews,
+		DepthBuffer,
+		UAVStartSlot,
+		NumUAVS,
+		&UAVs,
+		UAVInitialCounts);
+\end{lstlisting}
+\caption{Comparison of the two OMSetRenderTargets*() calls.}
+\label{code:setRTV}
+\end{figure}
+
+\noindent \\ \\ After we change this call, we know exactly in which registers
+our UAVs will live. So, following that, we make sure to specify where these
+UAVs live on the shader side as a global variable, as shown in figure
+\ref{code:UAVShaderSide}. A few things to note: in the code. The token
+"DataType" should be replaced with whatever datatype was specified
+(\textbf{unsigned int}, \textbf{float*}). Something to consider, though, is
+that each element within a UAV texture is limited to 32 bits. I recommend
+\textbf{float3} only be used in very specific cases, where precision is not
+paramount, as you are only able to specify a format of
+DXGI\_FORMAT\_R11G11B10\_FLOAT, which means that a programmer is only given 11
+bits for the first and second channels, and 10 bits for the third channel.
+There are special registers in HLSL shaders in which we must utilize for the
+use of UAVs. There are 8 of these registers, and they are preceded with a
+'u'. By specifying our register, we know exactly what the datatype and
+makeup of that UAV is, by what we have defined on the application side.
+
+\begin{figure}[h]
+\begin{lstlisting}[language=HLSL]
+RWTexture2D<[DataType]> UAVName : register(uX);
+\end{lstlisting}
+\caption{General layout of UAV declaration on the shader side.}
+\label{code:UAVShaderSide}
+\end{figure}
+
+\noindent \\ \\ To reiterate, a UAV is a texture that has been mapped to a
+read/write register on the GPU. Since it is a texture, we can also sample from
+it. This behavior exists for the following reason: say we populate this UAV
+texture in one shader pass, then want to read from it within a different one.
+This can be accomplished in two ways, but some programmers prefer to sample
+from the texture using the sample intrinsic, rather than indexing it like a
+UAV. To do so, we would have to specify that we want our texture to be used as
+both a UAV and a read-in texture, by changing the bind flags from
+\textbf{D3D11\_BIND\_UNORDERED\_ACCESS} to
+\textbf{D3D11\_BIND\_UNORDERED\_ACCESS $|$ D3D11\_BIND\_SHADER\_RESOURCE}.
+This allows us to also tie a texture sampler to the same texture that a UAV is
+bound to. However, to smaple from the texture, we must firt unplug it from the
+program as a UAV and plug it back in as a sampled texture. This means that
+writing to a texture, then sampling from it in the same pass would not be
+allowed (nor would it be very practical). A good use for setting a texture as
+both a UAV and a Sampled Texture would be in a case such as the Subsurface
+Scattering demo, where we store the depth of each fragment, with respect to
+the light in one pass, as well as which ray passes through that fragment.
+
+\subsubsection{Unordered Access View Limitations and Recommendations}
+
+UAVs are quite useful in the grand scheme of things, but how useful they can
+be, really depends on the amount of memory the GPU has at its disposal, and
+whether or not the data the programmer would like to store must be iterated
+over. The memory bandwidth issue is not necessarily a pressing one for the
+demo presented within this paper, but it could present itself as an issue for
+larger projects, if not monitered. \\ \\ UAVs cannot be looped over within a
+shader. What this means, is that if a programmer would like to search for a
+value within a UAV, this is not possible and the HLSL compiler will not even
+compile the programmer's shader. This means that any sort of iteration over
+dynamic data within a pixel shader is not possible at this time. I speculate
+that this is done as a precaution to keep programmers from shooting themselves
+in the foot, or creating an infinite loop within the GPU, which could cause
+trouble in the form of Denial of Service. However, if the programmer sets up
+their UAV diligently within the shader, this should never be the case. \\ \\
+Another issue is that application side UAVs and their Shader-side counterparts
+are seemingly very disparate entities within code. A programmer must be very
+diligent in keeping track which UAVs are tied to which textures, what datatype
+is associated with said UAV, whether or not the UAV is bound, and if bound, to
+which register. However, following all of the bookkeeping steps, UAVs make
+shaders more powerful. \\ \\ As mentioned above, there are 8 UAV registers
+available on the hardware on which I ran my code. However, we may only bind 7
+UAVs at a time, since one of these UAV registers is actually reserved for the
+render target (if we are utilizing UAVs within a pass that renders to screen).
+When designing a graphics program, remember to keep track of how many
+Read/Write datastructures needed within the GPU, and which can be sampled as
+textures at any point. It is also recommended that a programmer become very
+familiar with data packing algorithms, such that the 32 bits per each UAV
+element is used to as much of its capacity as possible. Packing data
+efficiently will lead to a far more efficient HLSL program, as long as the
+pack/unpack functions are quick.
 
 \subsubsection{Pixel Synchronization Behavior}
 
-\lipsum[60-74]
+The Behavior of Pixel Synchronization can be confusing, unless if we take time
+to understand what it actually does. However, let us first take the time to
+figure out how prepare it for use on the application side. In order to see if
+the Iris extensions are available, the programmer must include the following
+files into his or her C++ program: \textit{ID3D10Extensions.h},
+\textit{IGFXExtensionsHelper.h} and \textit{IGFXExtensionHelper.cpp}. These
+three files can be found within the github repository in the IGFXExtensions
+folder. After including these files in your C++ application, the programmer
+may now use the IGFX namespace. To initialize these extensions, simply execute
+the following commands during the DirectX setup function (in this project,
+this part of code is called \textbf{InitD3D()}). As is shown in figure
+\ref{code:extInit}, to initialize Iris Extensions on the application is quite
+simple. This is because Iris Extensions are meant to happen without having to
+be too visible to the DirectX side of code. After we initialize our graphics
+extensions, we can see which extensions we have available to us, if any. Now
+that we have this information, our program can make informed decisions on what
+kind of hardware it has at its disposal to accomplish render techniques. As
+this demo is meant only for Iris extensions, a decision was made to not
+utilize this available extension check to enhance robustness of the program.
 
-\subsubsection{Coding Quirks}
+\begin{figure}[h]
+\begin{lstlisting}
+//global variable...
+IGFX::Extensions myExtensions;
+
+//Within setup code...
+HRESULT res = IGFX::Init(dev);
+if(res == S_OK) myExtensions = 
+	IGFX::getAvailableExtensions(dev);
+
+\end{lstlisting}
+\caption{Intel Iris extension setup on the application side.}
+\label{code:extInit}
+\end{figure}
+
+\subsubsection{Coding and Behavior Quirks}
 
 \lipsum[75-99]
-
 
 \subsubsection{Suggestions and Advice When Using Pixel Synchronization}
 

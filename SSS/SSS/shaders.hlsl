@@ -169,7 +169,7 @@ float4 POShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 }
 
 
-RWTexture2D<uint> clearMask	:	register(u5);
+RWTexture2D<float> clearMask	:	register(u5);
 RWTexture2D<float> cDepth	:	register(u6);
 
 
@@ -177,25 +177,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	float3 lightVec : NORMAL1, float4 lightCol : COLOR1, uint mode : MODE, float4 rotNorm : NORMAL2, float3 eyeVec : NORMAL3) : SV_TARGET
 {
 
-	if ((mode & CULL_RENDER_MODE) && (mode & CULL_RENDER_SHADER))
-	{
-		IntelExt_Init();
-		IntelExt_BeginPixelShaderOrdering();
-
-
-		uint2 pixAddr = svposition.xy;
-		
-			clearMask[pixAddr]++;
-		switch (clearMask[pixAddr]){
-		case 1:
-			cDepth[pixAddr] = svposition.z;
-			break;
-		default:
-			if (cDepth[pixAddr] < svposition.z) discard;
-			break;
-		}
-
-	}
+	
 	
 	uint2 uv = UVs;
 	float wrap = 0.4;
@@ -248,7 +230,26 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 		}
 	}
 
-	
+	if ((mode & CULL_RENDER_MODE) && (mode & CULL_RENDER_SHADER))
+	{
+		IntelExt_Init();
+		IntelExt_BeginPixelShaderOrdering();
+
+		float4 clearColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+			uint2 pixAddr = svposition.xy;
+
+			clearMask[pixAddr]++;
+		switch (clearMask[pixAddr]){
+		case 1:
+			cDepth[pixAddr] = svposition.z;
+			break;
+		default:
+			if (cDepth[pixAddr] < svposition.z) color.a = 0.0f;
+			break;
+		}
+
+	}
 
 	color.xyz = float3(ambient.rgb + diffuse.rgb + specular.rgb);
 		return color;

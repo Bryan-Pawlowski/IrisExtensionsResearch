@@ -1408,7 +1408,7 @@ void InitializeUAVs(void)
 	texDesc.SampleDesc.Count = 1;
 	texDesc.SampleDesc.Quality = 0;
 	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
+	texDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
 	texDesc.Format = DXGI_FORMAT_R32_FLOAT;
 
 	HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
@@ -1524,7 +1524,7 @@ void InitializeUAVs(void)
 	cmTexDesc.SampleDesc.Quality = 0;
 	cmTexDesc.Usage = D3D11_USAGE_DEFAULT;
 	cmTexDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS;
-	cmTexDesc.Format = DXGI_FORMAT_R32_UINT;
+	cmTexDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	
 	texRes = dev->CreateTexture2D(&cmTexDesc, NULL, &cullClearMask);
 
@@ -1537,7 +1537,7 @@ void InitializeUAVs(void)
 	D3D11_UNORDERED_ACCESS_VIEW_DESC cmUAVdsc;
 
 	cmUAVdsc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-	cmUAVdsc.Format = DXGI_FORMAT_R32_UINT;
+	cmUAVdsc.Format = DXGI_FORMAT_R32_FLOAT;
 	cmUAVdsc.Texture2D.MipSlice = 0;
 
 	texRes = dev->CreateUnorderedAccessView(cullClearMask, &cmUAVdsc, &cullUAVs[0]);
