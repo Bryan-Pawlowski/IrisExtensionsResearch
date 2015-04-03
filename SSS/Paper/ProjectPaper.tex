@@ -190,6 +190,8 @@ spectacular images.
 
 \subsubsection{How Pixel Synchronization Works in Code}
 
+\label{section:PixSyncIntro}
+
 \nohyphens{On the programmer side, there is not much coding overhead as far as
 initializing, then calling Pixel Synchronization. On the application side, the
 programmer must first check the hardware to make sure that the hardware is
@@ -205,7 +207,7 @@ implementation of Pixel Synchronization lasts until the end of the Pixel
 Shader code. What this means, is that it is recommended that all code over
 which syncronization must occur should come as close to the end as possible.
 Listing \ref{code:PSExample} (below) shows how a bare bones Pixel Shader using
-Pixel Synchronization might look.}
+Pixel Synchronization might look. For more information on how Pixel Synchronization works, please rever to section \ref{section:PSBehavior}.}
 
 
 \begin{figure}[h]
@@ -751,7 +753,7 @@ float4 PShader(...)
 \label{code:3DTexPop}
 \end{figure}
 
-\section{Findings and Observations}
+\section{Findings}
 
 There are a lot of quirks and behaviors that have been logged throughout the
 entirety of this project. Firstly, I'd like to touch on the performance
@@ -794,9 +796,9 @@ model (how many vertices), the frames per second performance of each model.
 
 \lipsum[39-53]
 
-\subsection{Observations}
+\section{Observations}
 
-\subsubsection{Creating and Using Unordered Access Views}
+\subsection{Creating and Using Unordered Access Views}
 \label{section:UAVs}
 
 When using pixel synchronization, Unordered Access Views (UAVs) are key to
@@ -823,7 +825,7 @@ code in figure \ref{code:mapUAVtoTex}, then we are only a couple of small, yet
 key, steps to utilizing UAVs within our code.
 
 \begin{figure}[h]
-\begin{lstlisting}[language=C++]
+\begin{lstlisting}[language=C++,breaklines=true]
 D3D11_TEXTURE2D_DESC texDesc;
 ZeroMemory(&texDesc, sizeof(texDesc));
 texDesc.Width = SCREEN_WIDTH;
@@ -838,8 +840,10 @@ texDesc.Format = DXGI_FORMAT_R32_FLOAT;
 
 //We then use our description to create our texture.
 
-HRESULT texRes = 
-  dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
+HRESULT texRes = dev->CreateTexture2D(&texDesc, NULL, &pUAVTex);
+
+//We always have a hook to check if our 
+//device-side calls were successful.
 if (texRes != S_OK)
 {
 	MessageBox(HWND_DESKTOP, 
@@ -848,15 +852,12 @@ if (texRes != S_OK)
 	exit(EXIT_FAILURE);
 }
 
-//We always have a hook to check if our 
-//device-side calls were successful.
-
 \end{lstlisting}
 \caption{Describing and creating the 2D texture that we will use for our UAV.}
 \label{code:texDesc}
 \end{figure}
 
-%------------------------------------------------------------------------------
+%-----------------------------------------------------------------------------
 
 \begin{figure}[h]
 \begin{lstlisting}[language=C++]
@@ -882,7 +883,7 @@ if (UAVRes != S_OK){
 \label{code:mapUAVtoTex}
 \end{figure}
 
-\noindent \\ \\  Now that we have a texture created, and a UAV instance bound
+\noindent \\ Now that we have a texture created, and a UAV instance bound
 to that texture, we must now tell the GPU when we want to utilize the UAV and
 where exactly we want that UAV to be mapped, register wise, on the GPU side.
 We do this by making a call to the GPU to not only set the render target, but
@@ -911,10 +912,10 @@ devcon->OMSetRenderTargetsAndUnorderedAccessViews(
 \label{code:setRTV}
 \end{figure}
 
-\noindent \\ \\ After we change this call, we know exactly in which registers
+\noindent \\ After we change this call, we know exactly in which registers
 our UAVs will live. So, following that, we make sure to specify where these
 UAVs live on the shader side as a global variable, as shown in figure
-\ref{code:UAVShaderSide}. A few things to note: in the code. The token
+\ref{code:UAVShaderSide}. A few things to note: In the code, The token
 "DataType" should be replaced with whatever datatype was specified
 (\textbf{unsigned int}, \textbf{float*}). Something to consider, though, is
 that each element within a UAV texture is limited to 32 bits. I recommend
@@ -929,13 +930,13 @@ makeup of that UAV is, by what we have defined on the application side.
 
 \begin{figure}[h]
 \begin{lstlisting}[language=HLSL]
-RWTexture2D<[DataType]> UAVName : register(uX);
+RWTextureXD<[DataType]> UAVName : register(uY);
 \end{lstlisting}
-\caption{General layout of UAV declaration on the shader side.}
+\caption{General layout of UAV declaration on the shader side Where \textbf{X} is a dimension from 1 to 3, and \textbf{Y} is a register number from 0 to 7. }
 \label{code:UAVShaderSide}
 \end{figure}
 
-\noindent \\ \\ To reiterate, a UAV is a texture that has been mapped to a
+\noindent \\ To reiterate, a UAV is a texture that has been mapped to a
 read/write register on the GPU. Since it is a texture, we can also sample from
 it. This behavior exists for the following reason: say we populate this UAV
 texture in one shader pass, then want to read from it within a different one.
@@ -954,7 +955,9 @@ both a UAV and a Sampled Texture would be in a case such as the Subsurface
 Scattering demo, where we store the depth of each fragment, with respect to
 the light in one pass, as well as which ray passes through that fragment.
 
-\subsubsection{Unordered Access View Limitations and Recommendations}
+\subsection{Unordered Access View Limitations and Recommendations}
+
+\label{section:UAVLimits}
 
 UAVs are quite useful in the grand scheme of things, but how useful they can
 be, really depends on the amount of memory the GPU has at its disposal, and
@@ -985,9 +988,55 @@ textures at any point. It is also recommended that a programmer become very
 familiar with data packing algorithms, such that the 32 bits per each UAV
 element is used to as much of its capacity as possible. Packing data
 efficiently will lead to a far more efficient HLSL program, as long as the
-pack/unpack functions are quick.
+pack/unpack functions are quick. \\ \\ There remain other issues while using
+UAVs, including the following:
 
-\subsubsection{Pixel Synchronization Behavior}
+\begin{description}
+
+\item[Clearing UAVs] \hfill \\ 
+
+Clearing a UAV on the application side can be quite expensive, and seems to
+scale quite a bit with the size of the UAV. For instance, within my refract
+code, I have a UAV that points to a Texture3D that greatly slows down the
+performance of the application. Please see figure (make figure) for a visual
+explanation. It is up to the programmer's discression to discern a 'sweet
+spot' size for their UAVs to get equal parts quality and performance. As can
+be seen in the graph, having a large UAV can really slow down a render pass.
+
+\item[Uninitialized UAVs] \hfill \\
+
+Within HLSL code, the compiler allows the programmer to define a RWTextureXD,
+as demonstrated in figure \ref{code:UAVShaderSide}, at any time. There is no
+check from the compiler to see if there is a UAV register that has been
+initialized to a texture. The reason why is because shader programs are
+compiled and linked prior to setting any UAVs. In other words, the HLSL
+compiler allows this because it is trusting the programmer to populate that
+register with a texture when it comes time to run the shader program. However,
+if a UAV is never initialized or populated, the programmer may still reference
+that RWTexture, but any writes to or reads from will not work. In most cases,
+any read or write will cause the program to crash. Any methods specific to
+RWTexture can still be executed, such as RWTexture2D.GetDimensions(). However,
+the X and Y dimensions returned will just be zero. This is an easily avoidable
+pitfall, so long as the programmer keeps track of his or her UAVs accordingly.
+
+\item[UAV Order is important] \hfill \\
+
+Programmers utilizing UAVs in their shader code must keep track of the order
+in which their UAVs are indicated to the GPU when using
+OMSetRenderTargetsAndUnorderedAccessViews(). Seeing as this is only possible
+if the UAVs are kept in an array, it is good to keep a note of which UAVs are
+meant for certain purposes. If multiple sets of UAVs are needed, it is
+recommended these UAV sets are named accordingly. While rendering, shader code
+is allowed to access UAVs as a datatype that conflicts with what a programmer
+might have defined at that UAV slot, because every element in a UAV texture is
+32 bits. This makes it quite difficult to catch potential errors, unless
+diligent precautionary measures are taken.
+
+\end{description}
+
+\subsection{Pixel Synchronization Behavior}
+
+\label{section:PSBehavior}
 
 The Behavior of Pixel Synchronization can be confusing, unless if we take time
 to understand what it actually does. However, let us first take the time to
@@ -1024,11 +1073,50 @@ if(res == S_OK) myExtensions =
 \label{code:extInit}
 \end{figure}
 
-\subsubsection{Coding and Behavior Quirks}
+\noindent \\ After we ensure our program/Direct3D device  can use Pixel
+Synchronization, there isn't anything more that the GPU device requires from
+the application, itself. Now, all we must do is specify when, inside of our
+pixel shader, we want to synchronize our pixels, and that's it! For an actual
+shader code snippet of this, please refer to the snippet in section
+\ref{section:PixSyncIntro}, figure \ref{code:PSExample}. Recall that the Pixel
+Shader must include \textit{IntelExtensions.hlsl}. \\ \\ So at this point, we
+should be able to initialize Iris Extensions and invoke Pixel Synchronization.
+However, as programmers, we can't very well utilize Pixel Synchronization
+without first knowing how it behaves. \\ \\ When invoked, it is known that
+Pixel Synchronization first creates a barrier for all shaders in flight at the
+same pixel position. Following this barrier, we know that all shaders that hit
+this barrier are ordered by Primitive ID. The question is, "How does this
+ordering occur?" The answer is actually quite straightforward. They appear to
+be ordered by primitive number because they are ordered by order of submission
+from the vertex stage. Knowing that this happens, whether the pixels actually
+accomplish a front-back or back-front sorting depends on how the model was
+defined within its object file. \\ \\ Knowing that the ordering takes place as
+such, it is not safe to assume that the ordering will take place the way the
+programmer wants to. As a result, this begs the question: What is the benefit
+of Pixel Synchronization, exactly? The benefit of this extension comes from
+the fact that we can guarantee a portion of memory will be read/written
+without data races. This allows for programmers to accomplish much more within
+the pixel shader than has been done before. To be able to accomplish sorting
+based upon depth within the shader is a remarkable thing. However, there are
+some workarounds that must take place. As it was mentioned in section
+\ref{section:UAVLimits}, we cannot loop over our UAVs, but one thing we are
+able to do is make create a 'mask' that keeps track of what depth of a
+Texture3D or Texture2D array has not been written to, then write to that.
+After this step, we can sort through the UAV as a sampled texture in a later
+pass, such that we can do something meaningful with the information.
+
+\subsection{Coding and Behavior Quirks}
+
+\subsubsection{Setting up Textures}
+
+\subsubsection{Pipeline Behavior}
+
+\subsubsection{Placement of Pixel Synchronization call}
 
 \lipsum[75-99]
 
 \subsubsection{Suggestions and Advice When Using Pixel Synchronization}
+\label{section:}
 
 \lipsum[100-114]
 
@@ -1038,8 +1126,8 @@ if(res == S_OK) myExtensions =
 
 \lipsum[115-119]
 
-\subsection{Implementation Discussion}
-\label{subsection:Implementation}
+\section{Implementation Discussion}
+\label{subsection:ImplementationDiscussion}
 
 \lipsum[120-150]
 

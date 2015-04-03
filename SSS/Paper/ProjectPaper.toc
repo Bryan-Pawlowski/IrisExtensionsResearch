@@ -48,7 +48,7 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsubsection}{\numberline {3.2.1}Shader-Based Description of Implementation}{11}{subsubsection.3.2.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {4}Findings and Observations}{12}{section.4}
+\contentsline {section}{\numberline {4}Findings}{12}{section.4}
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {4.1}Performance Metrics}{13}{subsection.4.1}
 \defcounter {refsection}{0}\relax 
@@ -58,22 +58,28 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsubsection}{\numberline {4.1.3}Refraction}{16}{subsubsection.4.1.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.2}Observations}{18}{subsection.4.2}
+\contentsline {section}{\numberline {5}Observations}{18}{section.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.2.1}Creating and Using Unordered Access Views}{18}{subsubsection.4.2.1}
+\contentsline {subsection}{\numberline {5.1}Creating and Using Unordered Access Views}{18}{subsection.5.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.2.2}Unordered Access View Limitations and Recommendations}{21}{subsubsection.4.2.2}
+\contentsline {subsection}{\numberline {5.2}Unordered Access View Limitations and Recommendations}{21}{subsection.5.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.2.3}Pixel Synchronization Behavior}{22}{subsubsection.4.2.3}
+\contentsline {subsection}{\numberline {5.3}Pixel Synchronization Behavior}{23}{subsection.5.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.2.4}Coding and Behavior Quirks}{22}{subsubsection.4.2.4}
+\contentsline {subsection}{\numberline {5.4}Coding and Behavior Quirks}{24}{subsection.5.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.2.5}Suggestions and Advice When Using Pixel Synchronization}{27}{subsubsection.4.2.5}
+\contentsline {subsubsection}{\numberline {5.4.1}Setting up Textures}{24}{subsubsection.5.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {5}Conclusion and Recommended Future Work}{30}{section.5}
+\contentsline {subsubsection}{\numberline {5.4.2}Pipeline Behavior}{24}{subsubsection.5.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.1}Implementation Discussion}{30}{subsection.5.1}
+\contentsline {subsubsection}{\numberline {5.4.3}Placement of Pixel Synchronization call}{24}{subsubsection.5.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.2}What Do These Findings Mean?}{35}{subsection.5.2}
+\contentsline {subsubsection}{\numberline {5.4.4}Suggestions and Advice When Using Pixel Synchronization}{28}{subsubsection.5.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.3}Where Do We Go From Here?}{38}{subsection.5.3}
+\contentsline {section}{\numberline {6}Conclusion and Recommended Future Work}{31}{section.6}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {7}Implementation Discussion}{31}{section.7}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {7.1}What Do These Findings Mean?}{36}{subsection.7.1}
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {7.2}Where Do We Go From Here?}{39}{subsection.7.2}

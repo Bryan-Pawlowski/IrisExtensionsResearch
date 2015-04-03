@@ -21,18 +21,21 @@
 \BOOKMARK [3][-]{subsubsection.3.1.1}{Vertex Shader}{subsection.3.1}% 21
 \BOOKMARK [2][-]{subsection.3.2}{Better Convex Refraction With Pixel Synchronization}{section.3}% 22
 \BOOKMARK [3][-]{subsubsection.3.2.1}{Shader-Based Description of Implementation}{subsection.3.2}% 23
-\BOOKMARK [1][-]{section.4}{Findings and Observations}{}% 24
+\BOOKMARK [1][-]{section.4}{Findings}{}% 24
 \BOOKMARK [2][-]{subsection.4.1}{Performance Metrics}{section.4}% 25
 \BOOKMARK [3][-]{subsubsection.4.1.1}{Raw Performance Check of Pixel Synchronization}{subsection.4.1}% 26
 \BOOKMARK [3][-]{subsubsection.4.1.2}{Subsurface Scattering}{subsection.4.1}% 27
 \BOOKMARK [3][-]{subsubsection.4.1.3}{Refraction}{subsection.4.1}% 28
-\BOOKMARK [2][-]{subsection.4.2}{Observations}{section.4}% 29
-\BOOKMARK [3][-]{subsubsection.4.2.1}{Creating and Using Unordered Access Views}{subsection.4.2}% 30
-\BOOKMARK [3][-]{subsubsection.4.2.2}{Unordered Access View Limitations and Recommendations}{subsection.4.2}% 31
-\BOOKMARK [3][-]{subsubsection.4.2.3}{Pixel Synchronization Behavior}{subsection.4.2}% 32
-\BOOKMARK [3][-]{subsubsection.4.2.4}{Coding and Behavior Quirks}{subsection.4.2}% 33
-\BOOKMARK [3][-]{subsubsection.4.2.5}{Suggestions and Advice When Using Pixel Synchronization}{subsection.4.2}% 34
-\BOOKMARK [1][-]{section.5}{Conclusion and Recommended Future Work}{}% 35
-\BOOKMARK [2][-]{subsection.5.1}{Implementation Discussion}{section.5}% 36
-\BOOKMARK [2][-]{subsection.5.2}{What Do These Findings Mean?}{section.5}% 37
-\BOOKMARK [2][-]{subsection.5.3}{Where Do We Go From Here?}{section.5}% 38
+\BOOKMARK [1][-]{section.5}{Observations}{}% 29
+\BOOKMARK [2][-]{subsection.5.1}{Creating and Using Unordered Access Views}{section.5}% 30
+\BOOKMARK [2][-]{subsection.5.2}{Unordered Access View Limitations and Recommendations}{section.5}% 31
+\BOOKMARK [2][-]{subsection.5.3}{Pixel Synchronization Behavior}{section.5}% 32
+\BOOKMARK [2][-]{subsection.5.4}{Coding and Behavior Quirks}{section.5}% 33
+\BOOKMARK [3][-]{subsubsection.5.4.1}{Setting up Textures}{subsection.5.4}% 34
+\BOOKMARK [3][-]{subsubsection.5.4.2}{Pipeline Behavior}{subsection.5.4}% 35
+\BOOKMARK [3][-]{subsubsection.5.4.3}{Placement of Pixel Synchronization call}{subsection.5.4}% 36
+\BOOKMARK [3][-]{subsubsection.5.4.4}{Suggestions and Advice When Using Pixel Synchronization}{subsection.5.4}% 37
+\BOOKMARK [1][-]{section.6}{Conclusion and Recommended Future Work}{}% 38
+\BOOKMARK [1][-]{section.7}{Implementation Discussion}{}% 39
+\BOOKMARK [2][-]{subsection.7.1}{What Do These Findings Mean?}{section.7}% 40
+\BOOKMARK [2][-]{subsection.7.2}{Where Do We Go From Here?}{section.7}% 41

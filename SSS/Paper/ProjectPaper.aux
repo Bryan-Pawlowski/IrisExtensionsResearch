@@ -38,6 +38,7 @@
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {1.4}Pixel Synchronization}{3}{subsection.1.4}}
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {1.4.1}What is Pixel Synchronization?}{3}{subsubsection.1.4.1}}
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {1.4.2}How Pixel Synchronization Works in Code}{3}{subsubsection.1.4.2}}
+\newlabel{section:PixSyncIntro}{{1.4.2}{3}{How Pixel Synchronization Works in Code}{subsubsection.1.4.2}{}}
 \newlabel{DescriptiveLabel}{{1.4.2}{3}{}{lstlisting.-1}{}}
 \@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {1.1}{\ignorespaces How Pixel Synchronization Pixel Shader Code Might Look}}{3}{figure.1.1}}
 \newlabel{code:PSExample}{{1.1}{3}{How Pixel Synchronization Pixel Shader Code Might Look}{figure.1.1}{}}
@@ -87,7 +88,7 @@
 \newlabel{DescriptiveLabel}{{3.1.1}{12}{}{lstlisting.-8}{}}
 \@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Pixel shader for simple refraction}}{12}{figure.3.2}}
 \newlabel{code:PSSimpleRefract}{{3.2}{12}{Pixel shader for simple refraction}{figure.3.2}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {4}Findings and Observations}{12}{section.4}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {4}Findings}{12}{section.4}}
 \newlabel{DescriptiveLabel}{{3.2.1}{13}{}{lstlisting.-9}{}}
 \@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Populating the \textit  {unsigned int} 3D texture.}}{13}{figure.3.3}}
 \newlabel{code:3DTexPop}{{3.3}{13}{Populating the \textit {unsigned int} 3D texture}{figure.3.3}{}}
@@ -96,30 +97,36 @@
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}Raw Performance Check of Pixel Synchronization}{13}{subsubsection.4.1.1}}
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}Subsurface Scattering}{14}{subsubsection.4.1.2}}
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}Refraction}{16}{subsubsection.4.1.3}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Observations}{18}{subsection.4.2}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Creating and Using Unordered Access Views}{18}{subsubsection.4.2.1}}
-\newlabel{section:UAVs}{{4.2.1}{18}{Creating and Using Unordered Access Views}{subsubsection.4.2.1}{}}
-\newlabel{DescriptiveLabel}{{4.2.1}{19}{}{lstlisting.-10}{}}
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces Describing and creating the 2D texture that we will use for our UAV.}}{19}{figure.4.1}}
-\newlabel{code:texDesc}{{4.1}{19}{Describing and creating the 2D texture that we will use for our UAV}{figure.4.1}{}}
-\newlabel{DescriptiveLabel}{{4.2.1}{20}{}{lstlisting.-11}{}}
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces Mapping our UAV to the texture we created in figure \ref  {code:texDesc}}}{20}{figure.4.2}}
-\newlabel{code:mapUAVtoTex}{{4.2}{20}{Mapping our UAV to the texture we created in figure \ref {code:texDesc}}{figure.4.2}{}}
-\newlabel{DescriptiveLabel}{{4.2.1}{21}{}{lstlisting.-12}{}}
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {4.3}{\ignorespaces Comparison of the two OMSetRenderTargets*() calls.}}{21}{figure.4.3}}
-\newlabel{code:setRTV}{{4.3}{21}{Comparison of the two OMSetRenderTargets*() calls}{figure.4.3}{}}
-\newlabel{DescriptiveLabel}{{4.2.1}{21}{}{lstlisting.-13}{}}
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {4.4}{\ignorespaces General layout of UAV declaration on the shader side.}}{21}{figure.4.4}}
-\newlabel{code:UAVShaderSide}{{4.4}{21}{General layout of UAV declaration on the shader side}{figure.4.4}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}Unordered Access View Limitations and Recommendations}{21}{subsubsection.4.2.2}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}Pixel Synchronization Behavior}{22}{subsubsection.4.2.3}}
-\newlabel{DescriptiveLabel}{{4.2.3}{22}{}{lstlisting.-14}{}}
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {4.5}{\ignorespaces Intel Iris extension setup on the application side.}}{22}{figure.4.5}}
-\newlabel{code:extInit}{{4.5}{22}{Intel Iris extension setup on the application side}{figure.4.5}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.4}Coding and Behavior Quirks}{22}{subsubsection.4.2.4}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.5}Suggestions and Advice When Using Pixel Synchronization}{27}{subsubsection.4.2.5}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {5}Conclusion and Recommended Future Work}{30}{section.5}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Implementation Discussion}{30}{subsection.5.1}}
-\newlabel{subsection:Implementation}{{5.1}{30}{Implementation Discussion}{subsection.5.1}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}What Do These Findings Mean?}{35}{subsection.5.2}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Where Do We Go From Here?}{38}{subsection.5.3}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {5}Observations}{18}{section.5}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Creating and Using Unordered Access Views}{18}{subsection.5.1}}
+\newlabel{section:UAVs}{{5.1}{18}{Creating and Using Unordered Access Views}{subsection.5.1}{}}
+\newlabel{DescriptiveLabel}{{5.1}{19}{}{lstlisting.-10}{}}
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Describing and creating the 2D texture that we will use for our UAV.}}{19}{figure.5.1}}
+\newlabel{code:texDesc}{{5.1}{19}{Describing and creating the 2D texture that we will use for our UAV}{figure.5.1}{}}
+\newlabel{DescriptiveLabel}{{5.1}{20}{}{lstlisting.-11}{}}
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Mapping our UAV to the texture we created in figure \ref  {code:texDesc}}}{20}{figure.5.2}}
+\newlabel{code:mapUAVtoTex}{{5.2}{20}{Mapping our UAV to the texture we created in figure \ref {code:texDesc}}{figure.5.2}{}}
+\newlabel{DescriptiveLabel}{{5.1}{21}{}{lstlisting.-12}{}}
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Comparison of the two OMSetRenderTargets*() calls.}}{21}{figure.5.3}}
+\newlabel{code:setRTV}{{5.3}{21}{Comparison of the two OMSetRenderTargets*() calls}{figure.5.3}{}}
+\newlabel{DescriptiveLabel}{{5.1}{21}{}{lstlisting.-13}{}}
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces General layout of UAV declaration on the shader side Where \textbf  {X} is a dimension from 1 to 3, and \textbf  {Y} is a register number from 0 to 7. }}{21}{figure.5.4}}
+\newlabel{code:UAVShaderSide}{{5.4}{21}{General layout of UAV declaration on the shader side Where \textbf {X} is a dimension from 1 to 3, and \textbf {Y} is a register number from 0 to 7}{figure.5.4}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Unordered Access View Limitations and Recommendations}{21}{subsection.5.2}}
+\newlabel{section:UAVLimits}{{5.2}{21}{Unordered Access View Limitations and Recommendations}{subsection.5.2}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Pixel Synchronization Behavior}{23}{subsection.5.3}}
+\newlabel{section:PSBehavior}{{5.3}{23}{Pixel Synchronization Behavior}{subsection.5.3}{}}
+\newlabel{DescriptiveLabel}{{5.3}{23}{}{lstlisting.-14}{}}
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Intel Iris extension setup on the application side.}}{23}{figure.5.5}}
+\newlabel{code:extInit}{{5.5}{23}{Intel Iris extension setup on the application side}{figure.5.5}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Coding and Behavior Quirks}{24}{subsection.5.4}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.1}Setting up Textures}{24}{subsubsection.5.4.1}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.2}Pipeline Behavior}{24}{subsubsection.5.4.2}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.3}Placement of Pixel Synchronization call}{24}{subsubsection.5.4.3}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.4.4}Suggestions and Advice When Using Pixel Synchronization}{28}{subsubsection.5.4.4}}
+\newlabel{section:}{{5.4.4}{28}{Suggestions and Advice When Using Pixel Synchronization}{subsubsection.5.4.4}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion and Recommended Future Work}{31}{section.6}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {7}Implementation Discussion}{31}{section.7}}
+\newlabel{subsection:ImplementationDiscussion}{{7}{31}{Implementation Discussion}{section.7}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}What Do These Findings Mean?}{36}{subsection.7.1}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Where Do We Go From Here?}{39}{subsection.7.2}}
