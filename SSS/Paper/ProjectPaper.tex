@@ -1021,16 +1021,16 @@ pitfall, so long as the programmer keeps track of his or her UAVs accordingly.
 
 \item[UAV Order is important] \hfill \\
 
-Programmers utilizing UAVs in their shader code must keep track of the order
-in which their UAVs are indicated to the GPU when using
-OMSetRenderTargetsAndUnorderedAccessViews(). Seeing as this is only possible
-if the UAVs are kept in an array, it is good to keep a note of which UAVs are
-meant for certain purposes. If multiple sets of UAVs are needed, it is
-recommended these UAV sets are named accordingly. While rendering, shader code
-is allowed to access UAVs as a datatype that conflicts with what a programmer
-might have defined at that UAV slot, because every element in a UAV texture is
-32 bits. This makes it quite difficult to catch potential errors, unless
-diligent precautionary measures are taken.
+Programmers using UAVs in their shader code must keep track of the order in
+which their they are given to the GPU when Binding their UAVs and Render
+Target(s). Seeing as this is only possible if the UAVs are kept in an array,
+it is good to keep a note of which UAVs are meant for certain purposes. If
+multiple sets of UAVs are needed, it is recommended these UAV sets are named
+accordingly. While rendering, shader code is allowed to access UAVs as a
+datatype that conflicts with what a programmer might have defined at that UAV
+slot, because every element in a UAV texture is 32 bits. This makes it quite
+difficult to catch potential errors, unless diligent precautionary measures
+are taken.
 
 \end{description}
 
@@ -1042,7 +1042,7 @@ The Behavior of Pixel Synchronization can be confusing, unless if we take time
 to understand what it actually does. However, let us first take the time to
 figure out how prepare it for use on the application side. In order to see if
 the Iris extensions are available, the programmer must include the following
-files into his or her C++ program: \textit{ID3D10Extensions.h},
+files into his or her C++ code: \textit{ID3D10Extensions.h},
 \textit{IGFXExtensionsHelper.h} and \textit{IGFXExtensionHelper.cpp}. These
 three files can be found within the github repository in the IGFXExtensions
 folder. After including these files in your C++ application, the programmer
@@ -1107,13 +1107,50 @@ pass, such that we can do something meaningful with the information.
 
 \subsection{Coding and Behavior Quirks}
 
-\subsubsection{Setting up Textures}
+As this project deals with raw DirectX, there are a lot of places in code
+which could serve as confusing pitfalls. These pieces of code range from
+application or CPU-side issues, or even within the pipeline itself. This
+section is meant to detail some of those more common pitfalls and also point
+out some behavior inherent to the pipeline or hardware that are not the
+programmer's fault.
+
+\subsubsection{Working With the GPU Device on the Application Side}
+
+Just the same as in OpenGL applications, DirectX applications allow the
+program to continue even if there is an error or failure within the graphics
+device. For this reason, self-error checking is a very important practice when
+building a graphics program from scratch. Within a DirectX application, this
+can be easily done, as the appropriate device and device context related
+functions return a datatype called HRESULT. By checking this HRESULT, a
+programmer can get a good idea of what type of error is happening within his
+or her code. However, this doesn't encompass all errors. There are some
+instances in which a call to the GPU can cause an internal error, and force
+the device to unplug itself from the program. The instance in which this
+"Device Removed Error" occurred most commonly for this project was when
+attempting to create a UAV texture that was too large for the program. If the
+program is allowed to let itself run without having this error caught, other
+errors will occur down the line, and in the best case, the program will yield
+a viewport full of garbage.
 
 \subsubsection{Pipeline Behavior}
 
+The most fascinating behavior of the pipeline during this project was finding
+that the pipeline may make rounding errors during the interpolation phase of
+the pipeline. These rounding errors were made apparent when attempting to work
+with a UAV that was a larger resolution than 512x512 pixels in the Subsurface
+Scattering Demo. If the texture was too high of a resolution, the resulting
+depth-based shadow would cause an immense amount of artifacts. This was
+mitigated when using a lower resolution texture. The only conclusion I could
+draw from this was that there were rounding errors taking place within the
+interpolation stage, forcing certain indices of the texture to be missed.
+Screenshots and a graph demonstrating this behavior can be found on page(put
+pictures into this document now, ok thanks).
+
 \subsubsection{Placement of Pixel Synchronization call}
 
-\lipsum[75-99]
+
+
+%\lipsum[75-99]
 
 \subsubsection{Suggestions and Advice When Using Pixel Synchronization}
 \label{section:}

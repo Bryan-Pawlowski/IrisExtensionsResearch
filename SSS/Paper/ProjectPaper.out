@@ -31,7 +31,7 @@
 \BOOKMARK [2][-]{subsection.5.2}{Unordered Access View Limitations and Recommendations}{section.5}% 31
 \BOOKMARK [2][-]{subsection.5.3}{Pixel Synchronization Behavior}{section.5}% 32
 \BOOKMARK [2][-]{subsection.5.4}{Coding and Behavior Quirks}{section.5}% 33
-\BOOKMARK [3][-]{subsubsection.5.4.1}{Setting up Textures}{subsection.5.4}% 34
+\BOOKMARK [3][-]{subsubsection.5.4.1}{Working With the GPU Device on the Application Side}{subsection.5.4}% 34
 \BOOKMARK [3][-]{subsubsection.5.4.2}{Pipeline Behavior}{subsection.5.4}% 35
 \BOOKMARK [3][-]{subsubsection.5.4.3}{Placement of Pixel Synchronization call}{subsection.5.4}% 36
 \BOOKMARK [3][-]{subsubsection.5.4.4}{Suggestions and Advice When Using Pixel Synchronization}{subsection.5.4}% 37
