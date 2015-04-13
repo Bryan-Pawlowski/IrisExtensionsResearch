@@ -31,7 +31,7 @@ struct VOut
 {
 	float4 svposition : SV_POSITION;
 	float4 color : COLOR;
-	float4 position : POSITIONT;
+	float4 position : POSITION;
 	float2 UVs : TEXCOORD;
 	float4 normal : NORMAL;
 	float4 camera : CAMERA;

@@ -1148,14 +1148,253 @@ pictures into this document now, ok thanks).
 
 \subsubsection{Placement of Pixel Synchronization call}
 
+As state previously, making a call to pixel synchronization creates a critical
+section within a pixel shader. The catch to this, however, is that, beginning
+with the pixel synchronization call, the rest of the pixel shader is a
+critical section until the end of the shader. Since this is the case, it is
+highly recommended that all operations that are not dependant upon
+synchronization happen prior to the barrier to mitigate the number of
+operations that must be ordered. However, if the pixel shader does not have
+many operations taking place, it may not be a noticeable difference to have
+the non-dependant code within the critical section. Code with pixel
+syncronization saw a 10\% drop in frames per second, compared to the same code
+with the barrier removed.
 
+\subsubsection{Vertices are Still the Bottleneck}
 
-%\lipsum[75-99]
+As the vertices have been processed and all values have been interpolated
+across the pipeline at the point of the Pixel Shader, a bigger influence on
+runtime will still be the number of vertices used to define the 3D object. For
+instance, this project contains two pawn models. One is very low resolution
+with a smal number of faces, and the other has been smoothed and vertices have
+been added. The runtime still scales with the number of vertices, regardless
+of any influence of pixel synchronization.
 
-\subsubsection{Suggestions and Advice When Using Pixel Synchronization}
-\label{section:}
+\subsection{Suggestions and Advice When Using Pixel Synchronization}
+\label{section:suggestions}
 
-\lipsum[100-114]
+Pixel Synchronization melds the world of graphics and parallelism even
+further, by adding the capabilites of barriers to the end of the graphics
+pipeline. However, to take advantage of this capability to the fullest, some
+practices in parallel programming must be taken up within graphics
+programming.
+
+\begin{description}
+
+\item[Design the Critical Section] \hfill \\
+
+Since our critical section will be ordered and will execute one-at-a-time, the
+programmer must do what he or she can to keep that section of code lean. To
+make sure our critical section is as lean as possible, it is recommended that
+the programmer evaluate and design the pixel shader to make smart, informed
+decisions on what operations can happen outside or inside of the ordered
+section of code. One very simple rule is that any write to or read from shared
+memory must take place within a critical section. As a translation, any access
+to memory that would require a mutex in a parallel program should be accessed
+inside of the Pixel Sync critical section.
+
+\item[Know the Necessary Relationships] \hfill \\
+
+Having multiple render passes per object in a scene is quite costly. However,
+a good way to mitigate erroneous passes is to think about the relationship
+between the object and, in the case of Subsurface Scattering, the light
+source. In the case of Subsurface scattering, we know that the depth
+information stored at that object does not change until either the object or
+the light changes their orientation within the scene. A flag can be inserted
+into the program such that if either of the two involved entities change their
+orientation or position, the Pixel Ordering passes are activated to gather the
+new depth information. Executing Pixel Ordering passes based upon a condition
+has the potential to vastly speed up the runtime of a graphics progrom that
+uses this functionality to implement effects such as subsurface scattering,
+and help to make a case for its viability in practical use.
+
+\item[Keep the UAVs a reasonable size] \hfill \\
+
+One of the biggest hits to performance was using a UAV texture that was quite
+large. UAVs that were large ended up incurring a rather larger performance
+hit. To mitigate this, it is recommended to find a "sweet spot" between
+quality and performance. Along with the performance of the shaders with the
+UAV, it takes quite a bit of time to clear these UAVs with each rendering of
+the scene. This was made very apparent when creating a Texture3D UAV of size
+$800^3$.
+
+\item[Take Advantage of Having a Texture Be Both a UAV and a Sampled Texture] \hfill \\
+
+Sampling a texture takes less time than indexing a UAV. As this is the case,
+it is recommended that the programmer access the texture with a Sampler if the
+shader is only reading from the texture, and not Read/Writing. This will help
+ensure that the final render pass is as fast as possible.
+
+\end{description}
+
+\subsection{General Suggestions and Advice}
+
+When writing raw DirectX, there are some pitfalls and coding tricks that are
+necessary to point out. However, paying attention to these pitfalls and tricks
+won't necessarily make a programmer's DirectX application bug-free, but
+knowledge and consideration of these suggestions and advice could save
+debugging and head-scratching time.
+
+\begin{description}
+
+\item[Constant Buffers] \hfill \\
+
+Constant Buffers are how DirectX approaches application-specific variables
+within the GPU. For instance, if the programmer would like to include an
+interactive coefficient for brightness of a light source, he or she would do
+so by creating a constant buffer that held that coeffiecient, then updating it
+on the application side prior to rendering. OpenGL approaches this by using
+Uniform Variables, all of which have their own ID number on the GPU and are
+updated one-by-one. \\ \\ If a programmer has multiple values to pass into his
+or her DirectX program, it can be done by adding multiple members to the
+constant buffer data structure. This reduces the communication to/from the GPU
+to just one instance, while updating the entire buffer. However, it is
+important that the definition of the struct on the GPU side mirrors the
+application side's definition. Further, take note that the Constant Buffer's
+size must be a multiple of 16. This is so the call to copy the information
+from the application to GPU will always be a predicatable size for the GPU. To
+mitigate problems, the creation of the constant buffer in the Subsurface
+Scattering Demo added the size of the constant buffer, mod 16. For a better
+idea, please consider the code snippet below. On line 5 in the below code
+snippet, the multiple of 16 size constraint is accounted for by adding the
+size of the buffer, mod 16. This means that the constant buffer could have
+anywhere from 0 to 15 bytes of extra space. Another way to account for the
+multiple of 16 size constraint is to add pad variables to the constant buffer,
+itself. Some programmers prefer this method, as it gives the padding a
+representation in the form of a defined datatype.
+
+\begin{lstlisting}[language=C++]
+D3D11_BUFFER_DESC bd;
+ZeroMemory(&bd, sizeof(bd));
+
+bd.Usage = D3D11_USAGE_DEFAULT;
+bd.ByteWidth = sizeof(CBUFFER) + (sizeof(CBUFFER) % 16);
+bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+HRESULT bres = dev->CreateBuffer(&bd, NULL, &pCBuffer);
+
+if (bres != S_OK)
+{
+	MessageBox(HWND_DESKTOP, 
+		L"FAILED CONSTANT BUFFER CREATION", 
+		L"CBUFFER ERROR", MB_OK);
+	exit(EXIT_FAILURE);
+}
+devcon->VSSetConstantBuffers(0, 1, &pCBuffer);
+\end{lstlisting}
+
+\item[Learn the HLSL Semantics] \hfill \\
+
+In HLSL a Semantic is an optional string that identifies the intended usage of
+return data. These semantics are quite useful in telling the GPU how to
+interpolate values across the pipeline. For instance, consider the following
+Data Structure defined in HLSL:
+
+\begin{lstlisting}[language=HLSL, numbers=none, frame=none]
+struct VOut
+{
+	float4 svposition : SV_POSITION;
+	float4 color : COLOR;
+	float4 position : POSITION;
+	float2 UVs : TEXCOORD;
+	float4 normal : NORMAL;
+	float4 camera : CAMERA;
+	float3 lightVec : NORMAL1;
+	float4 lightCol : COLOR1;
+	uint mode : MODE;
+	float4 rotNorm : NORMAL2;
+	float3 eyeVec : NORMAL3;
+};
+\end{lstlisting}
+
+This is a data structure defined within the shader file, such that the vertex
+shader can pass many values to the pipeline. Some sematics are built in, but
+some others are programmer-defined. In this case, the only programmer-defined
+semantic would be MODE. The use for mode will be covered in the implementation
+discussion. Notice the differences between the SV\_POSITION and POSITION
+semantics. These two Semantics tell the pipeline how to interpolate these
+values. As can be seen in the listed Shaders, both the SV\_POSITON and
+POSITION members get the same value in the vertex shader. However,
+SV\_POSITION gets interpolated into X/Y screen positons, and POSITION gets
+interpolated in the same -1 to 1 space for the X/Y/Z position given to it.
+Once a fragment or pixel shader has completed its running, the computed color
+is assigned to the pixel at the X/Y SV\_POSITION. These semantics are a great
+way to keep track of values passed across the pipeline, and helps shed a
+little bit more light on what they are, and what they are used for.
+
+\item[Invest Time into Learning a Good Menuing Library] \hfill \\
+
+Creating a menu window for this project could have been made a lot simpler
+with a proper menuing library, instead of building it from scratch. The
+advantage of using a premade menuing library is that many of the
+functionalities of buttons can be linked in a simple call, rather than using
+the vanilla window class. For instance, within the Subsurface Scattering code,
+the menu was built entirely from scratch, and had to have its own window
+process, where it must check the state of global variables with which the
+buttons on the menu are tied to, and checked/unchecked, or presed without a
+convenient construct for relationship. The problem with this approach is that
+the relationship between the menu's buttons and what they are supposed to
+indicate, where they are located on the menu window, and which checkboxes are
+related to each other all must be managed explicitly by the programmer. In
+short, to save time, it is highly recommended that a menuing library be used,
+so as to avoid any extra debugging that does not have anything directly to do
+with the project.  \\ \\ Further, using the raw windows framework to create a
+menu doesn't abstract away anything for the programmer; every bit of the
+subclasses that the menu window holds are at the most raw level. For a better idea, please see the code below:
+
+\begin{lstlisting}[language=C++, numbers=none, frame=none]
+hGBButton = CreateWindowEx(
+	NULL,
+	L"BUTTON",
+	L"GOOD/BAD",
+	WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+	50,
+	20,
+	100,
+	24,
+	hWnd,
+	(HMENU)GOODBAD_BUTTON,
+	GetModuleHandle(NULL),
+	NULL);
+
+SendMessage(hGBButton,
+	WM_SETFONT,
+	(WPARAM)hfDefault,
+	MAKELPARAM(FALSE, 0));
+
+Button_SetCheck(hGBButton, true);
+\end{lstlisting}
+
+To make a button without any menuing library, we must define a new window
+instance which lives inside of the current window, $hWnd$, define its size and
+position within the window, whether it is a checkbox button, and pass messages
+to and from the button, itself. The last line of the listing is meant to show
+that the programmer must set whether the checkbox is checked or unchecked,
+which implies that the programmer must track the value associated with that
+button and change that value accordingly. In short, without a proper Menuing
+library, building a menu can become quite convoluted and confusing.
+
+\item[Use Separate Render Functions] \hfill \\
+
+To demonstrate different effects, there could be potentially many differences
+in setup and dispatching of the GPU. For instance, the difference between the
+regular Phong Illumination technique and the Subsurface Scattering algorithm
+utilizing pixel synchronization are quite different, as far as how many UAVs
+must be set and bound to the render target and the number of passes. To keep
+the code readable and to mitigate too many conditionals within the render
+function, it is recommended that each render technique get its own render
+function. \\ \\ If render techniques are not separated into different render
+functions, there could be mistakes made that could skew timing measurements.
+For instance, within the Subsurface Scattering Project, the Phong Illumination
+technique had been measured to perform at about the same framerate as the
+Pixel Synch Subsurface Scatter. As it turns out, what was happening was that
+the two setup render passes were still being executed, then the information
+was basically just being ignored. However, problems such as this are specific
+to the programmer, and not necesarily a general problem. For readability and
+clearcut management of code, splitting render techniques into their own
+separate functions is recommended.
+
+\end{description}
 
 \pagebreak
 

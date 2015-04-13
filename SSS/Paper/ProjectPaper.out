@@ -34,8 +34,10 @@
 \BOOKMARK [3][-]{subsubsection.5.4.1}{Working With the GPU Device on the Application Side}{subsection.5.4}% 34
 \BOOKMARK [3][-]{subsubsection.5.4.2}{Pipeline Behavior}{subsection.5.4}% 35
 \BOOKMARK [3][-]{subsubsection.5.4.3}{Placement of Pixel Synchronization call}{subsection.5.4}% 36
-\BOOKMARK [3][-]{subsubsection.5.4.4}{Suggestions and Advice When Using Pixel Synchronization}{subsection.5.4}% 37
-\BOOKMARK [1][-]{section.6}{Conclusion and Recommended Future Work}{}% 38
-\BOOKMARK [1][-]{section.7}{Implementation Discussion}{}% 39
-\BOOKMARK [2][-]{subsection.7.1}{What Do These Findings Mean?}{section.7}% 40
-\BOOKMARK [2][-]{subsection.7.2}{Where Do We Go From Here?}{section.7}% 41
+\BOOKMARK [3][-]{subsubsection.5.4.4}{Vertices are Still the Bottleneck}{subsection.5.4}% 37
+\BOOKMARK [2][-]{subsection.5.5}{Suggestions and Advice When Using Pixel Synchronization}{section.5}% 38
+\BOOKMARK [2][-]{subsection.5.6}{General Suggestions and Advice}{section.5}% 39
+\BOOKMARK [1][-]{section.6}{Conclusion and Recommended Future Work}{}% 40
+\BOOKMARK [1][-]{section.7}{Implementation Discussion}{}% 41
+\BOOKMARK [2][-]{subsection.7.1}{What Do These Findings Mean?}{section.7}% 42
+\BOOKMARK [2][-]{subsection.7.2}{Where Do We Go From Here?}{section.7}% 43
