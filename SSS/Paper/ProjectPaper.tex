@@ -53,6 +53,10 @@
 
 \begin{titlepage}
 \maketitle
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=1.0\textwidth]{CloseResult.jpg}
+\end{figure}
 \thispagestyle{empty}
 \end{titlepage}
 
@@ -323,8 +327,8 @@ program as a single unsigned integer (in OpenGL, this would be the same as
 passing in a single uniform variable to evaluate all user true-false settings.
 This saves time and space when passing these types of variables to the GPU). A
 more detailed discussion about this and why this approach for uniform
-variables is used can be found in section \ref{subsection:Implementation} on
-page \pageref{subsection:Implementation}.
+variables is used can be found in section \ref{subsection:Suggestions} on
+page \pageref{subsection:Suggestions}, under the "Constant Buffers" item.
 
 \subsubsection{Depth Mapping} 
 \label{section:DepthMap}
@@ -453,101 +457,6 @@ $sample()$.
 \end{description}
 %\caption{Description of the depth mapping approach to subsurface scattering}
 \label{figure:PSDesc}
-\end{figure}
-\begin{figure}[h!]
-\begin{lstlisting}[breaklines=true, language=HLSL]
-VOut VShader(...)
-{
-	VOut output;
-
-	float2 movedCoords = texCoord * 2;
-		movedCoords.x -= 1;
-		movedCoords.y -= 1;
-	float4 svPos = float4(movedCoords, 0.0, 1.0);
-	output.svposition = svPos;
-	output.position = mul(final, position);
-
-	// set the ambient light
-	output.color = ambientcol;
-
-	
-	float4 norm1 = normalize(mul(rotation, normal));
-	float diffusebrightness = saturate(dot(norm1,lightvec));
-	float4 norm = normalize(mul(final, normal));
-
-	//output.color += lightcol * diffusebrightness;
-
-	output.UVs.x = texCoord.x * SCREEN_WIDTH;
-	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
-
-	output.normal = norm;
-
-	output.camera = mul(final, lightPos);
-
-	output.mode = mode;
-
-
-	return output;
-}
-\end{lstlisting}
-\caption{Vertex Shader for first Pass of Depth Map accelerated by Pixel 
-Synchronization}
-\label{code:VShaderPSDepth}
-\end{figure}
-
-\begin{figure}[h!]
-
-\begin{lstlisting}[breaklines=true, language=HLSL]
-float4 PShader(...) : SV_TARGET 
-{
-	float2 svPos = position.xy;
-	float mdepth = distance(position, camera);
-	uint2 uv = UVs;
-
-	svPos.y = 0 - svPos.y;
-	svPos += 1;
-	svPos = svPos / 2;
-
-	float2 newPos;
-
-	newPos.x = svPos.x * SCREEN_WIDTH;
-	newPos.y = svPos.y * SCREEN_HEIGHT;
-
-	fromLightX[uv] = newPos.x;
-	fromLightY[uv] = newPos.y;
-	uvDepth[uv] = mdepth;
-
-	return color;
-}
-\end{lstlisting}
-\caption{Pixel Shader from first pass of Pixel Synchronization-Accelerated 
-depth mapping.}
-\label{code:PixelShaderPSDepth}
-\end{figure}
-
-\begin{figure}[h!]
-\begin{lstlisting}[breaklines=true, language=HLSL]
-float4 POShader(...) : SV_TARGET
-{
-	uint2 pixelAddr = svposition.xy;
-
-	float pos = distance(position, camera);
-
-	IntelExt_Init();
-	IntelExt_BeginPixelShaderOrdering();
-
-	if (pos < Shallow[pixelAddr])
-	{
-		Shallow[pixelAddr] = pos;
-	}
-
-	return color;
-	
-}
-
-\end{lstlisting}
-\caption{Pixel Ordering step of the alternate approach to depth mapping}
-\label{code:POShader}
 \end{figure}
 
 \begin{figure}[h]
@@ -1229,6 +1138,8 @@ ensure that the final render pass is as fast as possible.
 
 \subsection{General Suggestions and Advice}
 
+\label{subsection:Suggestions}
+
 When writing raw DirectX, there are some pitfalls and coding tricks that are
 necessary to point out. However, paying attention to these pitfalls and tricks
 won't necessarily make a programmer's DirectX application bug-free, but
@@ -1400,19 +1311,708 @@ separate functions is recommended.
 
 \section{Conclusion and Recommended Future Work}
 
-\lipsum[115-119]
+Coming to conclusions and figuring a roadmap for any potential future work for
+a project is almost as important as the project, itself. The following
+sections will detail what conclusions this project has presented, as far as
+the usefulness and viability of Pixel Synchronization, then potential avenues
+for further exploration will be detailed in the latter section. Those ideas
+are just to jumpstart the thinking of any student who wishes to undertake a
+project using pixel synchronization, and are not the only ideas worth
+persuing.
+
+\subsection{Conclusions About the Utility of Pixel Synchronization}
+
+\subsubsection{Key Observations}
+
+Before going into what conclusions were drawn, it is worth detailing the key
+observations that took place, as these shaped the conclusions. The following
+are a list of observations, and some may be repeats from previous sections of
+this paper.
+
+\begin{description}
+
+\item[UAVs limit potential] \hfill \\
+
+The UAV limitation described above in section \ref{section:UAVLimits}. The
+restriction of iterating over a UAV is, while understandable, diminishes the
+number of algorithms that can potentially be run on a synchronized pixel
+shader. As discussed above, this restriction is in place such that the
+programmer does not, by either accident or design, put a program onto the GPU
+hardware that creates a Denial of Service. Despite this limitation, there are
+workarounds, however, such workarounds would add an extra pass to a
+programmer's algorithm. For instance, one workaround could be to iterate over
+a Sampled texture, then using it as a UAV in the next pass. However, at this
+point, the idea of being able to use a UAV is shadowed by the fact that the
+programmer would be better off just keeping the texture bound to a sampler and
+doing a traditional render to texture and read from texture.
+
+\item[Performance Hit of Pixel Sync Scaled With the Size of the Model.] \hfill \\
+
+As demonstrated in this project, the performance hit scaled as it should have
+with the size of the model. This piece of hardware is as unobtrusive to the
+original pipeline as it possibly can be, and the size of the model doesn't
+affect performance any differently than it used to. Even though the
+performance hit scales as it should, that is not to say that it is not
+recommended that the programmer choose the critical section wisely. The
+smaller the critical section, the fewer the operations that must happen in-
+order. If at all possible, the best critical section would be one where only
+writes to the UAV take place. However, since most algorithms rely on reads and
+writes, this is a very tough case to acheive.
+
+\item[Pixel Synchronization Orders Pixels Based Upon When They Were Submitted] \hfill \\
+
+Seeing as the pixels are ordered based upon submission, and not depth, means
+that the programmer must still keep track of which pixels are deeper than
+others, when doing any sort of depth-based calculation. However, so long as
+the programmer designs the algorithm such that there is a quick check, depth-
+based decisions can be made in the same pass rather easily. Such an example of
+this is with the software culling example included in the Sub-Surface
+Scattering demo.
+
+\item[Pixel Synchronization is a Per-Pixel Mutex] \hfill \\
+
+As stated before, Pixel Synchronization's main purpose is to eliminate race
+conditions within Pixel Shaders. As such, Pixel Synchronization is a fantastic
+tool for naive calculations such as blending or transparency, since a pixel
+need only read/write a single value. Any algorithm that requires a naive
+addition or subtraction is already very well set up for the use of Pixel
+Synchronization. However, since this inherent mutex is in place, there are
+still many interesting solutions to be found within its use. \\ \\ With Pixel
+Synchronization, a programmer would be able to write a shadow mapping shader
+program with fewer render passes. All that must happen for the depth-based
+part of the shadow map is for the pass with respect to the light to mark which
+surfaces it can hit. Following that calculation, the render pass shader could
+make an informed decision on which parts of objects to illuminate, and which
+parts of objects not to illuminate.
+
+\end{description}
+
+\subsection{What the Findings Mean}
+
+Given the findings, there are a number of conclusions we can draw from this
+project. We can safely say that Pixel Synch is a great tool for a set of
+problems, careful design decisions will help make Pixel Synch algorithms
+relatively unobtrusive to runtime, all hardware could benefit from such a
+capability, and increased UAV functionality within the shader could unlock
+more potential.
+
+\begin{description}
+
+\item[For Certain problems, Pixel Synch is a Great Tool] \hfill \\
+
+Of course, Pixel Synchronization is not the be-all, end-all solution to
+increasing a graphics program's efficiency or quality. There are many key
+factors that attribute to the amount of utility that Pixel Synchronization
+will provide. If a graphics programmer were to be implementing a data-parallel
+rendering algorithm, this feature is quite useful. Any sort of depth-based
+problem would benefit very much from the use of Pixel Synchronization. In some
+cases, it can aid in performance, and in others, it can simply aid in
+simplifying the algorithm for readability, or reduce the amount of information
+the algorithm needs to run. As for the case of Subsurface Scattering, Pixel
+Synchronization was used to increase the quality of the image, and nothing
+more. After a small tweak to the Subsurface Scattering algorithm, the program
+was able to run at a performance similar to Phong Illumination in some cases.
+
+\item[When designing a Pixel Synch Algorithm, Do So Carefully] \hfill \\
+
+When finding a method of utilizing pixel synchronization for a rendering
+algorithm, there are important aspects to keep track of; for example:
+
+\begin{itemize} 
+
+\item How much memory does the GPU have?
+\item What size of texture would work for this algorithm?
+\item How much of the Pixel Shader must happen after Pixel Synchronization?
+
+\end{itemize}
+
+There are other factors among the above three questions, but those seem to be
+the most fundamental and most considered when designing algorithms using Pixel
+Synchronization. Throughout the project, the GPU memory size, texture size and
+size of the critical section were the main factors within the design. After
+finding a "sweet-spot" answer to these questions, the Pixel Synchronization
+stage was able to be fit into the rendering algorithm in a way that was
+relatively unobtrusive to runtime.
+
+\item[Pixel Synchronization Would Be a Welcome Addition on All Graphics Hardware] \hfill \\
+
+Seeing as Pixel Synchronization has had such an impressive effect on a
+CPU/GPU, It seems as though this capability would have great potential on
+larger discrete graphics hardware. Since the beginning of this project, this
+has become the case for nVidia hardware, with the introduction of nVidia's
+"Pixel Interlock" technology. Seeing this concept make the jump to discrete
+graphics hardware indicates a promising future for Pixel Synchronization.
+However, there must be more exploration and experimentation as far as what
+ideas this could lend itself well to.
+
+\item[Trusting the Programmer to Loop Over UAV Textures Will Be Beneficial]
+\hfill \\
+
+As previously stated, the HLSL shader compiler does not allow for a loop to
+have a condition that depends upon a read from a UAV. This could be a
+restriction based upon the fact that Pixel Synchronization is not a widely
+used extension and the compiler simply assumes that there will not be ordered
+access to the UAV elements. If the compiler were to allow conditionals within
+loop constructs which depended on information within the UAV, the potential of
+Pixel Synchronization would grow immensely. At the very least, it would be
+good for the programmer to be able to set a flag for the HLSL compiler that
+says, "trust me, I'm using pixel synchronization." Had this been the case for
+this project, a completed refraction demo would be a part of the final
+product. \\ \\ If the programmers are ever allowed to loop over UAVs, there
+would be potential to create well-informed, voxelized representations of a
+scene, to aid in simple refraction, ray-tracing or a more precise SubSurface
+Scattering algorithm. However, in order for ordered traversal through a UAV to
+be viable, more execution units would be beneficial, otherwise resolution
+would have to take a hit to keep performance at a respectable level. With
+time, however, the hardware industry would sort this limitation out.
+
+\end{description}
+
+\subsection{Where to Go From Here}
+
+This project answered the questions it set out to answer. However, that does
+not neccessarily mean that the exploration should be complete. Since we know
+what exactly the capabilities are of Pixel Synchronization, understand the
+concepts, how to set it up for use, there are a number of directions this
+project could continue. Should one so choose, there are a number of options
+chose to delve deeper into the algorithm implemented for this project, or
+breadth-wise, by exploring Pixel Synchronization on discrete graphics
+hardware.
+
+\subsubsection{Finding a Viable Workaround for Looping Over UAVs}
+
+In an effort to give a complete working version of the refract demo utilizing
+UAVs and Pixel Ordering, a small workaround was attempted and ended up not
+solving the problem. To prevent time wasting, that method will be described
+here. As can be seen in the code snippet in figure \ref{code:TempArrInit}.
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=HLSL]
+IntelExt_Init();
+IntelExt_BeginPixelShaderOrdering();
+
+//set clearMask, if it hasn't been, already.
+
+//we will loop through the voxel mask 
+//to determine where the inside of the model is.
+/*	/--number meanings--/
+	0: Outside of Model
+	1: Model Edge
+	2: Inside Model
+*/
+
+VoxMap[voxPos] = normal; //store this into the vox map.
+
+uint i;
+uint3 tempi = voxPos;
+uint tempArr[512];
+VoxMask[voxPos] = 1;//we are at the edge of the model
+
+[loop]
+for (i = voxPos.z; i < 512; i++){
+	tempi.z = i;
+	uint temp = VoxMask[tempi];
+	tempArr[i] = temp;
+}
+
+\end{lstlisting}
+\caption{Initialization of Temporary Array}
+\label{code:TempArrInit}
+\end{figure}
+
+
+
+\noindent The code within figure \ref{code:TempArrInit} is attempting to copy
+members of the voxel mask, which will be described more in-depth within
+section \ref{subsection:RefractionAttempt}. The idea behind this was, once
+these values were copied over to the temporary array, they could be looped
+upon with conditions, then updated. Following the update of the temporary
+array, the shader would finally update the UAV in the z direction at the
+pixel's x/y position. However, the roadblock, here, is that the HLSL compiler
+optimizes the code such that the actual evaluation loop doesn't reference the
+temporary array, but still references the address within the UAV. This means
+that the compiler actually sets the address of the array elements to the
+address of the UAV values, instead of copying the value to a fresh piece of
+memory. \\ \\ This phenomenon took place in a portion of code in the
+Subsurface Scattering, where a different workaround was implemented. However,
+that same workaround does not translate itself in a logical or functional way
+to this specific problem. When this phenomenon was occurring within the SSS
+implementation, what was happening was that a variable was being assigned to a
+value that lived within the UAV address space, and whenever that variable was
+manipulated, so, too, was the value within the UAV. If there were some sort of
+programming construct within HLSL that forced an explicit copy, this problem
+could be easily mitigated. However, with a substantial amount of searching, it
+was concluded that this type of explicitly forced copy of information to a new
+address did not exist. \\ \\ If a future graduate student could find or
+develop a way to mitigate this probelm, it would be a very worthwhile
+direction in which to take this project, especially with one or two practical
+uses of this workaround, such as finishing the Refraction implementation.
+However, recall that the purpose of this refraction implementation was to find
+a to accurately refract through assymmetrical objects, such as the cow,
+teapot, etc., as symmetrical obects can be defined mathematically, thus the
+use of Pixel Ordering to gain knowledge of the object would not be necessary.
+For instance, it is quite easy to gain knowledge of an entire cube within a
+shader, if the parameters of the cube are known and passed to the pipeline.
+Thus, an accurately refracting a cube, sphere or prism would be quite
+straightforward.
+
+\subsubsection{Pixel Synch Used With Geometry Shaders}
+
+Geometry Shaders may be written such that multiple instances of the same model
+can be rendered or processed within the same pass, thus moving the rendering
+bottleneck for something like a particle system (where particles have a non-
+trivial geometry) from the render call to the Geometry shader. As a technique
+this saves the application side of the program, thus the program as a whole, a
+lot of time, since a position uniform does not have to be updated between
+renders of each particle instance. \\ \\ To elaborate, consider a simulation
+of a herd of Zebra. Since all zebra could share the same geometry, it would
+make sense if the GPU were able to process the vertices for the model once,
+then duplicate the model as many times as needed within the Geometry Shader
+portion of the pipeline. With this being the case, if the programmer would
+like to implement any sort of depth-based effect, Pixel Synchronization would
+lend itself quite well to this problem. \\ \\ Using Pixel Synchronization,
+information for shadow mapping could be found in a straightforward manner, and
+shadows would be cast on the appropriate members of the herd, and also the
+plane on which they are standing. Pixel Synchronization could also be utilized
+in this instance to pair both the shadow mapping and the subsurface scattering
+technique such that a scene with a set of semi-opaque pawns may more
+realistically interact with light. \\ \\ For a final idea, consider a floating
+set of transparent objects such as vases or cows. Pixel Synchronization could
+be used to voxelize the scene of floating transparent objects, such that the
+objects could refract through one-another. This approach is very similar to a
+ray-trace. The advantage of tracing within the pixel shader is that the first
+collision has already taken place, as the Pixel or Fragment shader does not
+process portions of the scene with no geometry. Such an approach would be
+highly expensive, but highly impressive. \\ \\ Remember that all of these
+techniques, utilizing a geometry shader would be restricted to multiple
+objects with the same geometry, as we may only duplicate a model within the
+Geometry shader and not create new models within this shader. Even so, it
+would be a worthwhile experiment to conduct, as a geometry shader plus pixel
+synchronization could lend itself well to certain practical effects, such as
+stained glass windows or cups on a table.
+
+\subsubsection{Hack the Pipeline and Use Pixel Synchronization for Parallel
+Algorithms}
+
+This would be purely for the fun of doing so. A student could find a set of
+different parallel problems, such as the N-Body problem, and implement the
+compute step within a pixel shader and then compare this with compute shader
+and compute language implementations. My initial hypothesis is that the Pixel
+Synchronization version will take more time, since there has to be a dummy
+vertex process stage and then a pass through the pipeline before the
+computations within the pixel shader could take place, but it would be an
+interesting experiment to see how a programmer can get a pixel shader to
+interact with data that lives strictly within the GPU between passes, and keep
+the data coherent. Prior to pixel synchronization, such an experiment would
+never have been able to take place, since there existed no real way to
+implement any meaningful parallel algorithm in the graphics pipeline.
+
+\subsubsection{Benchmarking the Efficiency of Pixel Ordering/Interlock on Discrete Hardware, Compared to an Integrated Grahpics Architecture}
+
+Even taking the provided implementation of Subsurface Scattering and porting
+it to an nVidia-supported piece of code would suffice. Key pieces of
+information to look for would be the proportion of the performance hit, as it
+is obvious without experiment that the efficiency of a modern discrete
+graphics hardware solution will always be greater than that of its integrated
+counterparts. This information would be important for graphics programmers to
+know, such that a programmer can confidently say whether or not a certain
+pixel-ordering technique developed on one piece of hardware will scale well to
+a different distributor's hardware, and if not, what types of optimizations
+must be made, or should the Pixel Synch Technique on a certain piece of
+hardware be abandoned altogether.
+
+\pagebreak
 
 \section{Implementation Discussion}
-\label{subsection:ImplementationDiscussion}
+\label{section:ImplementationDiscussion}
 
-\lipsum[120-150]
+This section will detail important parts of code in-depth such that a majority
+of questions may be answered. The idea is that another student may be able to
+pick up the code I have implemented and quickly understand what decisions were
+made and why, which pieces of code depend on others, and so on. This way,
+changes can be made in an effective, informed manner, rather than with a
+trial-and-error approach, which can prove to be far less efficient.
 
-\subsection{What Do These Findings Mean?}
+\subsection{Boilerplate Code}
+\label{subsection:BoilerPlateImplementation}
 
-\lipsum[1-19]
+A majority of the Boilerplate functionality stays consistend between the two
+code bodies. As this is the case, the explanation of code setup,
+initialization and variable meanings will take place here. However, this
+section must not be considered to be a comprehensive tutorial on DirectX, but
+help explain some of its differences to OpenGL, as the latter is used in this
+University's Curriculum.
 
-\subsection{Where Do We Go From Here?}
+\subsubsection{Defining our Window}
 
-\lipsum[20-75]
+This code is straightforward, but could seem a bit foreign to a programmer who
+has not programmed in windows before. Right at the beginning of the program,
+two things must happen. Firstly, a window class must be defined and then
+registered with the operating system as seen in figure  \ref{code:winClass}.
+Within this code snippet, the important lines are 6, 7, and 12.
+
+\begin{description}
+
+\item[Line 6:] Here, the programmer is stating that this window will be 
+redrawn.
+
+\item[Line 7:] This is a pointer to a separate function called WindowProc.
+WindowProc is where all of the messages and interactions with that window
+will be coded. In other words, WindowProc will execute every time there is a
+message to the window.
+
+\item[Line 12:] This is where the program attempts to register the window
+class with the operating system. In otherwords, this determines whether the
+program has permission to create windows of this type of class.
+
+\end{description}
+
+\noindent If successfull with this portion, the program may now attempt to
+create a window instance, as seen in the code snippet in figure
+\ref{code:CreateWindow}. After the variable, $hWnd$, has been populated, it
+will be used later to link a D3D device. Another point worth noting is that
+the window size used was 1920x1080, as part of this project was to ensure that
+this effect could be used on a window size that is commonly used within
+industry for video games and scientific visualizations.
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=C++]
+WNDCLASSEX wc;
+
+ZeroMemory(&wc, sizeof(WNDCLASSEX));
+
+wc.cbSize = sizeof(WNDCLASSEX);
+wc.style = CS_HREDRAW | CS_VREDRAW;
+wc.lpfnWndProc = WindowProc;
+wc.hInstance = hInstance;
+wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+wc.lpszClassName = L"WindowClass";
+
+if (!RegisterClassEx(&wc))
+{
+	int nResult = GetLastError();
+	MessageBox(NULL,
+		L"DirectX window class creation failed\r\n",
+		L"Window Class Failed",
+		MB_ICONERROR);
+	exit(EXIT_FAILURE);
+}
+\end{lstlisting}
+
+\caption{Creating and registering a Window Class}
+\label{code:winClass}
+\end{figure}
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=HLSL]
+RECT wr = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
+
+hWnd = CreateWindowEx(NULL,
+	L"WindowClass",
+	L"Pawlowski Pixel Ordering Research",
+	WS_OVERLAPPEDWINDOW,
+	300,
+	300,
+	wr.right - wr.left,
+	wr.bottom - wr.top,
+	NULL,
+	NULL,
+	hInstance,
+	NULL);
+
+ShowWindow(hWnd, nCmdShow);
+\end{lstlisting}
+\caption{Create and Show the Window}
+\label{code:CreateWindow}
+\end{figure}
+
+\subsubsection{Direct3D Setup}
+
+When the program is ready to initialize direct3D, all it needs is for the
+calling process to pass the pointer to the window instance to which the
+Direct3D device will be tied. As there is a very excellent
+\href{http://www.directxtutorial.com}{tutorial website}(listed below), There
+will not be any code included within this portion. \\ \\ The most important
+difference between Direct3D and OpenGL is the use of COM Objects. COM
+(Component Object Model) Objects are Microsoft's way of making interprocess
+communication, or even IO with peripherals easier. In this case, Direct3D
+devices are represented with COM objects. As this is the case, there are
+slightly different ways to interact with the GPU when using Direct3D. For more
+information, please refer to
+\href{http://www.directxtutorial.com}{http://www.directxtutorial.com}, or
+microsoft's \href{https://msdn.microsoft.com/en-
+us/library/windows/desktop/ms690343(v=vs.85).aspx}{own documentation} online.
+
+\subsubsection{Constant Buffer Values Explained}
+
+
+
+\subsection{SubSurface Scattering Shader Walkthrough} 
+
+\label{subsection:SSSImplementation}
+
+\subsubsection{Pass 1}
+
+For the first render pass, texture-based knowledge of the model must be
+stored. As will be detailed in section \ref{subsubsection:BadRender}, this
+pass was added to ensure all texture space is covered when passing the model
+through the pipeline. Within this pass, the scene is projected from the
+perspective of the light, toward the object. After the model has been
+transformed, the texture coordinates of each vertex is passed throught he
+pipeline as the X and Y of the SV\_POSITION HLSL semantic. This maps the
+entire surface of the model to the viewport. If this pass were to be rendered
+to the screen, it would look like figure \ref{pic:texSpace}. As can be seen,
+the different portions of the pawn model are easily discernable. However,
+other objects take the entire screen space, as seen in figure
+\ref{pic:cubeTSpace}. 
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=1.0\textwidth]{textureSpace.jpg}
+	\caption{Pawn Model's Surface Unwrapped With Respect to Texture Space}
+	\label{pic:texSpace}
+\end{figure}
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=1.0\textwidth]{cubeTSpace.jpg}
+	\caption{Cube Model's Surface Unwrapped With Repsect to Texture Space, Shown to Illustrate a Model Whose Surface Spans the entire texture coordinate range}
+	\label{pic:cubeTSpace}
+\end{figure}
+
+\noindent Mapping the model's surface to the screen through texture space is a
+necessary step, as it guarantees that all of the model is rendered, thus
+information is stored at all possible locations in the model's texture space.
+The results of the implementation in section \ref{subsubsection:BadRender}
+will illustrate why this pass is necessary. \\ \\ In figure
+\ref{code:VShaderPSDepth}, the key code lines are lines 5 through 9. Here, the
+program is converting the texture coordinates to a value ranging from -1 to 1,
+which forces the texture coordinates to be interpolated and displayed on the
+screen. On line 10, the program is ensureng that the 3D coordinates are still
+being passed through. These coordinates are given an orthogonal projection.
+This is key for storing which portions of the model are on which pixel
+position if the model were to be projected correctly into screen space through
+the pipeline. In other words, the program is keeping track of the model's 3D
+position, such that it can be used to store information within the pixel
+shader. \\ \\ The Pixel Shader for this pass, figure
+\ref{code:PixelShaderPSDepth}, the program finds what the screen-space
+position should have been for the correctly projected 3D model (lines 3, 7
+through 9, 13 and 14) and stores them into UAV textures representing the X and
+Y coordinates of the model's screen position from the perspective of the light
+(lines 16 and 17). These values are stored as individuals, as tuples have a
+difficult time being used in a UAV when using Pixel Synchronization. These are
+stored at the texture coordinates, as texture coordinates stay at the same
+location of the model's surface, regardless of the model's orientation in
+space. Lastly, the depth with respect to the light's position is stored in a
+depth UAV. Writing this pass to the screen yields a result that can look
+somewhat like an abstract painting, such as figure \ref{pic:logTSpace}.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=1.0\textwidth]{logTSpace.jpg}
+	\caption{Log Model's Surface Unwrapped With Repsect to Texture Space}
+	\label{pic:logTSpace}
+\end{figure}
+
+\begin{figure}[h]
+\begin{lstlisting}[breaklines=true, language=HLSL]
+VOut VShader(...)
+{
+	VOut output;
+
+	float2 movedCoords = texCoord * 2;
+		movedCoords.x -= 1;
+		movedCoords.y -= 1;
+	float4 svPos = float4(movedCoords, 0.0, 1.0);
+	output.svposition = svPos;
+	output.position = mul(final, position);
+
+	// set the ambient light
+	output.color = ambientcol;
+
+	
+	float4 norm1 = normalize(mul(rotation, normal));
+	float diffusebrightness = saturate(dot(norm1,lightvec));
+	float4 norm = normalize(mul(final, normal));
+
+	//output.color += lightcol * diffusebrightness;
+
+	output.UVs.x = texCoord.x * SCREEN_WIDTH;
+	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
+
+	output.normal = norm;
+
+	output.camera = mul(final, lightPos);
+
+	output.mode = mode;
+
+
+	return output;
+}
+\end{lstlisting}
+\caption{Vertex Shader for first Pass of Depth Map accelerated by Pixel 
+Synchronization}
+\label{code:VShaderPSDepth}
+\end{figure}
+
+\begin{figure}[h]
+
+\begin{lstlisting}[breaklines=true, language=HLSL]
+float4 PShader(...) : SV_TARGET 
+{
+	float2 svPos = position.xy;
+	float mdepth = distance(position, camera);
+	uint2 uv = UVs;
+
+	svPos.y = 0 - svPos.y;
+	svPos += 1;
+	svPos = svPos / 2;
+
+	float2 newPos;
+
+	newPos.x = svPos.x * SCREEN_WIDTH;
+	newPos.y = svPos.y * SCREEN_HEIGHT;
+
+	fromLightX[uv] = newPos.x;
+	fromLightY[uv] = newPos.y;
+	uvDepth[uv] = mdepth;
+
+	return color;
+}
+\end{lstlisting}
+\caption{Pixel Shader from first pass of Pixel Synchronization-Accelerated 
+depth mapping.}
+\label{code:PixelShaderPSDepth}
+\end{figure}
+
+\subsubsection{Pass 2}
+
+Now that depth information regarding the model has been gathered, the second
+pass is where the pixel synchronization happens. The vertex shader in this
+pass stays relatively the same as the previous pass; however, the projected
+model coordinates are passed to the SV\_POSITION semantic, rather than the
+converted texture coordinates, as in the previous pass. To see how the shallow
+buffer is created, refer to figure \ref{code:POShader}. Within this pixel
+shader, the depth with respect to the light is recorded for every pixel/
+fragment. Then, the pixels are ordered, and then shallowest depth at that
+pixel location is recorded.
+
+\begin{figure}[h]
+\begin{lstlisting}[breaklines=true, language=HLSL]
+float4 POShader(...) : SV_TARGET
+{
+	uint2 pixelAddr = svposition.xy;
+
+	float pos = distance(position, camera);
+
+	IntelExt_Init();
+	IntelExt_BeginPixelShaderOrdering();
+
+	if (pos < Shallow[pixelAddr])
+	{
+		Shallow[pixelAddr] = pos;
+	}
+
+	return color;
+	
+}
+
+\end{lstlisting}
+\caption{Pixel Ordering step of the alternate approach to depth mapping}
+\label{code:POShader}
+\end{figure}
+
+\noindent The main purpose of this pass is to map which part of the model is
+shallowest to the light at a certain pixel position. With the utilization of
+pixel synchronization, this is a very straightforward process, with a
+guarantee against race conditions. With the help of the information gathered
+from the previous pass, the indexing and access of this information is
+straightforward. The image that would be output to the screen is far less
+interesting than the texture-space rendering, as it is an orthogonal view of
+the object from the perspective of the light, as seen in figure
+\ref{pic:orthoPawn}. The purpose of the orthogonal projection is such that we
+get a true trajectory of the light through the model, and not a trajectory
+that follows perspective foreshortening. It is important to note that, within
+this pass, the object must be contained within the boundaries of the view
+volume, otherwise key texture-based information will be missed for large
+portions of the model. However, it is important to maximize the amount of
+screen space filled by the model for this path, to give as detailed depth
+information as possible.
+
+\begin{figure}[h]
+	\centering
+	\includegraphics[width=1.0\textwidth]{orthoPawn.jpg}
+	\caption{Orthogonal Projection of Pawn Model with repsect to the light.}
+	\label{pic:orthoPawn}
+\end{figure}
+
+\subsubsection{Pass 3}
+
+\label{section:SSSPass3}
+
+For the final pass, the graphics program applies phong illumination from the
+perspective of the eye position with a perspective foreshortening projection.
+In addition to phong illumination, the depth-based calculations are applied to
+the final colors of the image, as well. To keep things simple, the color's
+diffuse brightness is scaled based upon its orientation to the light, and its
+model-specific depth, based upon that orientation. As this is a modified Phong
+Illumination technique with added depth information, the Vertex Shader is
+nothing different from what has already been seen. The same Pixel Shader,
+PShader2(), is used for three different render modes. Figure
+\ref{code:SSSFinal} details the portion of the shader that adds the depth
+information to the coloring of the image. As such, each section will discuss a
+different piece of the greater pixel shader function.
+
+\begin{figure}[h]
+\begin{lstlisting}[language=HLSL]
+
+			    /*...*/
+
+if (!(mode & PHONG_RENDER))
+{
+	uint2 lightCoords;
+
+	lightCoords.x = fromLightX[uv];
+	lightCoords.y = fromLightY[uv];
+
+	float mdepth = uvDepth[uv];
+
+	float shallow = Shallow[lightCoords];
+
+	if ((mode & PIXSYNC_OFF) && 
+		  (uvDepth[uv] > Shallow[lightCoords])){
+
+		float4 lColor = lightcol;
+		lColor -= (uvDepth[uv] - 
+			Shallow[lightCoords]) * 3;
+			
+		diffuse += lColor;
+	}
+}
+
+			    /*...*/
+
+\end{lstlisting}
+\caption{Chunk of Pixel Shader for final pass of the the Pixel Ordering-powered Subsurface Scattering technique}
+\label{code:SSSFinal}
+\end{figure}
+
+
+
+\subsection{Bad Render Function and Shader Walkthrough}
+
+\label{subsubsection:BadRender}
+
+\subsubsection{Culling Demo Render Function and Shader Walkthrough}
+
+\subsection{Refraction Attempt}
+
+\label{subsection:RefractionAttemptImplementation}
+
+\subsubsection{Overview of Implementation}
+
+
+\section{Images of Results}
 
 \end{document}

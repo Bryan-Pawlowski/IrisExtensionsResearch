@@ -49,6 +49,9 @@
 #define CULL_RENDER_NOCULL				4096	//two renders and show the composite working image.
 #define CULL_RENDER_SHADER				8192	//custom sample on second render
 #define CULL_RENDER_HARDWARE			16384	//no custom sample on second render
+#define PASS1							32768	//Show Pass 1 Only
+#define PASS2							65536	//Show Pass 2 Only
+#define ALLPASSES						131072	
 
 #define PAUSE_BUTTON					101	//Pause button identifier
 #define GOODBAD_BUTTON					102 //Good/bad render button identifier
@@ -60,9 +63,13 @@
 #define NOCULL_BUTTON					108 //Checkbox for cull demo's no-cull
 #define HWCULL_BUTTON					109 //Checkbox for cull demo's hardware cull option.
 #define SCULL_BUTTON					110 //Checkbox for cull demo's shader cull option.
+#define P1_BUTTON						111
+#define P2_BUTTON						112
+#define AP_BUTTON						113
 
 #define MODEL_SPHERE					0
 #define MODEL_PAWN						0xFFFFFFFF
+#define MODEL_CUBE						0xFFFFFFF0
 
 
 HWND hPauseButton;
@@ -75,6 +82,9 @@ HWND hPixOrderToggle;
 HWND hHWCullButton;
 HWND hNoCullButton;
 HWND hShadercullButton;
+HWND hPass1Button;
+HWND hPass2Button;
+HWND hAllPassesButton;
 HWND *currButton;
 HWND hKAmb;
 HWND hKDiff;
@@ -168,7 +178,9 @@ bool screenshot = false;
 bool bRender = false;
 bool pRender = false;
 bool cRender = false;
-
+bool pass1 = false;
+bool pass2 = false;
+bool pass3 = true;
 
 unsigned int cowVerts;
 
@@ -465,7 +477,11 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 			displayMode = displayMode | MODE_NO_SAMPLE;
 			break;
 		case 'm':
-			whichModel = ~whichModel;
+			if (whichModel != MODEL_CUBE) whichModel = ~whichModel;
+			else whichModel = MODEL_PAWN;
+			break;
+		case 'c':
+			whichModel = MODEL_CUBE;
 			break;
 		case ' ':
 			rotate = !rotate;
@@ -626,6 +642,38 @@ LRESULT CALLBACK MenuProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 												 Button_SetCheck(hShadercullButton, false);
 											 }
 					   }break;
+					   case P1_BUTTON:
+						   if (!pass1){
+							   pass1 = true;
+							   pass2 = false;
+							   pass3 = false;
+							   Button_SetCheck(hPass1Button, true);
+							   Button_SetCheck(hPass2Button, false);
+							   Button_SetCheck(hAllPassesButton, false);
+						   }
+						   else Button_SetCheck(hPass1Button, true);
+						   break;
+					   case P2_BUTTON:
+						   if (!pass2){
+							   pass1 = false;
+							   pass2 = true;
+							   pass3 = false;
+							   Button_SetCheck(hPass1Button, false);
+							   Button_SetCheck(hPass2Button, true);
+							   Button_SetCheck(hAllPassesButton, false);
+						   }
+						   else Button_SetCheck(hPass2Button, true);
+						   break;
+					   case AP_BUTTON:
+						   if (!pass3){
+							   pass1 = false;
+							   pass2 = false;
+							   pass3 = true;
+							   Button_SetCheck(hPass1Button, false);
+							   Button_SetCheck(hPass2Button, false);
+							   Button_SetCheck(hAllPassesButton, true);
+						   }
+						   else Button_SetCheck(hAllPassesButton, true);
 					   default:
 						   break;
 					   }
@@ -770,7 +818,7 @@ void RenderFrame(void)
 
 	ID3D11RenderTargetView *pNullRTView[] = { NULL };
 
-	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, pNullRTView, NULL, 1, 4, pUAV, 0);
+	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &RTVs[0], NULL, 1, 4, pUAV, 0);
 
 	devcon->RSSetState(DisableCull);
 	devcon->OMSetDepthStencilState(pDSState, 1);
@@ -791,10 +839,6 @@ void RenderFrame(void)
 	Final = matRotate * matView * matProjection;
 	Rotation = matRotate;
 	modelView = matView;
-
-	//D3DXMatrixTranspose(&cFinal, &Final);
-	//D3DXMatrixTranspose(&cRotation, &Rotation);
-	//D3DXMatrixTranspose(&cModelView, &modelView);
 
 
 	// load the matrices into the constant buffer
@@ -825,6 +869,11 @@ void RenderFrame(void)
 		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 		devcon->Draw(cowVerts, 0);
 	}
+	else if (whichModel == MODEL_CUBE){
+		devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+		devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+		devcon->DrawIndexed(36, 0, 0);
+	}
 	else
 	{
 		devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
@@ -833,6 +882,12 @@ void RenderFrame(void)
 		devcon->Draw(NumSphereVertices, 0);
 	}
 
+
+	if (pass1)
+	{
+		swapchain->Present(0, 0);
+		return;
+	}
 	//end of first pass.
 
 
@@ -845,17 +900,20 @@ void RenderFrame(void)
 
 	devcon->ClearRenderTargetView(RTVs[0], D3DXCOLOR(0.2f, 0.2f, 0.2f, 1.0f));
 
-	//devcon->DrawIndexed(36, 0, 0);
-	if (whichModel == MODEL_PAWN)
-	{
+	if (whichModel == MODEL_PAWN){
 		devcon->Draw(cowVerts, 0);
 	}
-	else
-	{
+	else if (whichModel == MODEL_CUBE){
+		devcon->DrawIndexed(36, 0, 0);
+	}
+	else{
 		devcon->Draw(NumSphereVertices, 0);
 	}
 
-
+	if (pass2){
+		swapchain->Present(0, 0);
+		return;
+	}
 	if ((displayMode & MODE_PERSP_SHOW_FLAT_SCALE)){
 		//begin third pass.
 
@@ -888,12 +946,13 @@ void RenderFrame(void)
 
 		devcon->UpdateSubresource(pCBuffer, 0, 0, &cBuffer, 0, 0);
 		//devcon->DrawIndexed(36, 0, 0);
-		if (whichModel == MODEL_PAWN)
-		{
+		if (whichModel == MODEL_PAWN){
 			devcon->Draw(cowVerts, 0);
 		}
-		else
-		{
+		else if (whichModel == MODEL_CUBE){
+			devcon->DrawIndexed(36, 0, 0 );
+		}
+		else{
 			devcon->Draw(NumSphereVertices, 0);
 		}
 
@@ -1010,7 +1069,7 @@ void InitGraphics(void)
 	//load sphere model for skybox
 
 	Model *sphereModel = (Model *)malloc(sizeof(Model));
-	int res2 = sphereModel->modelInit("bunny010n.obj");
+	int res2 = sphereModel->modelInit("log.obj");
 	if (!res2){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -1783,8 +1842,63 @@ void MakeMenu(HWND hWnd)
 		(WPARAM)hfDefault,
 		MAKELPARAM(FALSE, 0));
 
-	currButton = &hFlatButton;
+	hPass1Button = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Show Pass 1",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		150,
+		100,
+		100,
+		24,
+		hWnd,
+		(HMENU)P1_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hPass1Button, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
 	
+	hPass2Button = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Show Pass 2",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		150,
+		140,
+		100,
+		24,
+		hWnd,
+		(HMENU)P2_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hPass2Button, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	hAllPassesButton = CreateWindowEx(
+		NULL,
+		L"BUTTON",
+		L"Show Last Pass",
+		WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX,
+		150,
+		180,
+		100,
+		24,
+		hWnd,
+		(HMENU)AP_BUTTON,
+		GetModuleHandle(NULL),
+		NULL);
+
+	SendMessage(hAllPassesButton, WM_SETFONT,
+		(WPARAM)hfDefault,
+		MAKELPARAM(FALSE, 0));
+
+	Button_SetCheck(hAllPassesButton, true);
+
+	currButton = &hFlatButton;
 
 	return;
 }
