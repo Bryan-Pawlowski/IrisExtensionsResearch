@@ -12,7 +12,9 @@
 \usepackage{csquotes}
 \usepackage{lipsum}
 \usepackage{chngcntr}
+\usepackage{titlesec}
 \renewcommand{\familydefault}{\sfdefault}
+\newcommand{\sectionbreak}{\clearpage}
 \geometry{
 	left=1in,
 	right=1in,
@@ -510,8 +512,6 @@ section \ref{section:SimpleRefract}, is a simple refraction algorithm, that
 takes into account only the front face of the object to compute the color of
 the object at that point.
 
-\pagebreak
-
 \subsection{"Fake" Convex Object Refraction}
 \label{section:SimpleRefract}
 
@@ -662,6 +662,596 @@ float4 PShader(...)
 \label{code:3DTexPop}
 \end{figure}
 
+\section{Implementation Discussion}
+\label{section:ImplementationDiscussion}
+
+This section will detail important parts of code in-depth such that a majority
+of questions may be answered. The idea is that another student may be able to
+pick up the code I have implemented and quickly understand what decisions were
+made and why, which pieces of code depend on others, and so on. This way,
+changes can be made in an effective, informed manner, rather than with a
+trial-and-error approach, which can prove to be far less efficient.
+
+\subsection{Boilerplate Code}
+\label{subsection:BoilerPlateImplementation}
+
+A majority of the Boilerplate functionality stays consistend between the two
+code bodies. As this is the case, the explanation of code setup,
+initialization and variable meanings will take place here. However, this
+section must not be considered to be a comprehensive tutorial on DirectX, but
+help explain some of its differences to OpenGL, as the latter is used in this
+University's Curriculum.
+
+\subsubsection{Defining our Window}
+
+This code is straightforward, but could seem a bit foreign to a programmer who
+has not programmed in windows before. Right at the beginning of the program,
+two things must happen. Firstly, a window class must be defined and then
+registered with the operating system as seen in figure  \ref{code:winClass}.
+Within this code snippet, the important lines are 6, 7, and 12.
+
+\begin{description}
+
+\item[Line 6:] Here, the programmer is stating that this window will be 
+redrawn.
+
+\item[Line 7:] This is a pointer to a separate function called WindowProc.
+WindowProc is where all of the messages and interactions with that window
+will be coded. In other words, WindowProc will execute every time there is a
+message to the window.
+
+\item[Line 12:] This is where the program attempts to register the window
+class with the operating system. In otherwords, this determines whether the
+program has permission to create windows of this type of class.
+
+\end{description}
+
+\noindent If successfull with this portion, the program may now attempt to
+create a window instance, as seen in the code snippet in figure
+\ref{code:CreateWindow}. After the variable, $hWnd$, has been populated, it
+will be used later to link a D3D device. Another point worth noting is that
+the window size used was 1920x1080, as part of this project was to ensure that
+this effect could be used on a window size that is commonly used within
+industry for video games and scientific visualizations.
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=C++]
+WNDCLASSEX wc;
+
+ZeroMemory(&wc, sizeof(WNDCLASSEX));
+
+wc.cbSize = sizeof(WNDCLASSEX);
+wc.style = CS_HREDRAW | CS_VREDRAW;
+wc.lpfnWndProc = WindowProc;
+wc.hInstance = hInstance;
+wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+wc.lpszClassName = L"WindowClass";
+
+if (!RegisterClassEx(&wc))
+{
+	int nResult = GetLastError();
+	MessageBox(NULL,
+		L"DirectX window class creation failed\r\n",
+		L"Window Class Failed",
+		MB_ICONERROR);
+	exit(EXIT_FAILURE);
+}
+\end{lstlisting}
+
+\caption{Creating and registering a Window Class}
+\label{code:winClass}
+\end{figure}
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=HLSL]
+RECT wr = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
+
+hWnd = CreateWindowEx(NULL,
+	L"WindowClass",
+	L"Pawlowski Pixel Ordering Research",
+	WS_OVERLAPPEDWINDOW,
+	300,
+	300,
+	wr.right - wr.left,
+	wr.bottom - wr.top,
+	NULL,
+	NULL,
+	hInstance,
+	NULL);
+
+ShowWindow(hWnd, nCmdShow);
+\end{lstlisting}
+\caption{Create and Show the Window}
+\label{code:CreateWindow}
+\end{figure}
+
+\subsubsection{Direct3D Setup}
+
+When the program is ready to initialize direct3D, all it needs is for the
+calling process to pass the pointer to the window instance to which the
+Direct3D device will be tied. As there is a very excellent
+\href{http://www.directxtutorial.com}{tutorial website}(listed below), There
+will not be any code included within this portion. \\ \\ The most important
+difference between Direct3D and OpenGL is the use of COM Objects. COM
+(Component Object Model) Objects are Microsoft's way of making interprocess
+communication, or even IO with peripherals easier. In this case, Direct3D
+devices are represented with COM objects. As this is the case, there are
+slightly different ways to interact with the GPU when using Direct3D. For more
+information, please refer to
+\href{http://www.directxtutorial.com}{http://www.directxtutorial.com}, or
+microsoft's \href{https://msdn.microsoft.com/en-
+us/library/windows/desktop/ms690343(v=vs.85).aspx}{own documentation} online.
+
+\subsubsection{Constant Buffer Values Explained}
+
+For this code base, the same Constant buffer was used for each of the
+demonstrations bundled within the SSS visual studio project. This decision was
+made because a good number of the values within the constant buffer were re-
+used in the other demonstrations. That said, there are many values within this
+constant buffer. The constant buffer is defined in both the application and
+the shader as follows:
+
+\begin{lstlisting}[language=C++, numbers=none, frame=none]
+__declspec(align(16))
+struct CBUFFER
+{
+	D3DXMATRIX Final;
+	D3DXMATRIX Rotation;
+	D3DXMATRIX modelView;
+	D3DXVECTOR4 LightVector;
+	D3DXCOLOR LightColor;
+	D3DXCOLOR AmbientColor;
+	D3DXVECTOR4 LightPos;
+	unsigned int mode;
+};
+\end{lstlisting}
+
+\noindent The first line, \textbf{\_\_declspc(align(16))}, is included to
+demonstrate yet another way to avoid the Constant Buffer creation error, where
+a struct is not of a size that is divisible by 16, as detailed in the
+"Constant Buffers" item in section \ref{section:suggestions}. A majority of
+these member values are easy to understand their use; however, there is one
+value, \textbf{mode}, whose utility is not as readily apparent. \\ \\ Since
+there are conditions as far as what technique to use, or what to render, this
+could be a rather space-consuming constant buffer, if each condition were to
+be stored inside of its own variable. However, with bitmasking and bitwise
+arithmetic, all of these boolean values can be stored in a single integer. For
+more information on how the bitmasked values are set up, refer to the
+DXApp.cpp file included in the SSS directory of the project. All values are
+set to a certain bit, which means that they are all contiguous powers of two.
+This approach for storing booleans is a benefit in that it is not time or
+space intensive for the Application to send these boolean values to the GPU.
+
+\subsection{SubSurface Scattering Shader Walkthrough} 
+
+\label{subsection:SSSImplementation}
+
+\subsubsection{Pass 1}
+
+For the first render pass, texture-based knowledge of the model must be
+stored. As will be detailed in section \ref{subsubsection:BadRender}, this
+pass was added to ensure all texture space is covered when passing the model
+through the pipeline. Within this pass, the scene is projected from the
+perspective of the light, toward the object. After the model has been
+transformed, the texture coordinates of each vertex is passed throught he
+pipeline as the X and Y of the SV\_POSITION HLSL semantic. This maps the
+entire surface of the model to the viewport. If this pass were to be rendered
+to the screen, it would look like figure \ref{pic:texSpace}. As can be seen,
+the different portions of the pawn model are easily discernable. However,
+other objects take the entire screen space, as seen in figure
+\ref{pic:cubeTSpace}. 
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{textureSpace.jpg}
+	\caption{Pawn Model's Surface Unwrapped With Respect to Texture Space}
+	\label{pic:texSpace}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{cubeTSpace.jpg}
+	\caption{Cube Model's Surface Unwrapped With Repsect to Texture Space, Shown to Illustrate a Model Whose Surface Spans the entire texture coordinate range}
+	\label{pic:cubeTSpace}
+\end{figure}
+
+\noindent Mapping the model's surface to the screen through texture space is a
+necessary step, as it guarantees that all of the model is rendered, thus
+information is stored at all possible locations in the model's texture space.
+The results of the implementation in section \ref{subsubsection:BadRender}
+will illustrate why this pass is necessary. \\ \\ In figure
+\ref{code:VShaderPSDepth}, the key code lines are lines 5 through 9. Here, the
+program is converting the texture coordinates to a value ranging from -1 to 1,
+which forces the texture coordinates to be interpolated and displayed on the
+screen. On line 10, the program is ensureng that the 3D coordinates are still
+being passed through. These coordinates are given an orthogonal projection.
+This is key for storing which portions of the model are on which pixel
+position if the model were to be projected correctly into screen space through
+the pipeline. In other words, the program is keeping track of the model's 3D
+position, such that it can be used to store information within the pixel
+shader. \\ \\ The Pixel Shader for this pass, figure
+\ref{code:PixelShaderPSDepth}, the program finds what the screen-space
+position should have been for the correctly projected 3D model (lines 3, 7
+through 9, 13 and 14) and stores them into UAV textures representing the X and
+Y coordinates of the model's screen position from the perspective of the light
+(lines 16 and 17). These values are stored as individuals, as tuples have a
+difficult time being used in a UAV when using Pixel Synchronization. These are
+stored at the texture coordinates, as texture coordinates stay at the same
+location of the model's surface, regardless of the model's orientation in
+space. Lastly, the depth with respect to the light's position is stored in a
+depth UAV. Writing this pass to the screen yields a result that can look
+somewhat like an abstract painting, such as figure \ref{pic:logTSpace}.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{logTSpace.jpg}
+	\caption{Log Model's Surface Unwrapped With Repsect to Texture Space}
+	\label{pic:logTSpace}
+\end{figure}
+
+\begin{figure}[!htb]
+\begin{lstlisting}[breaklines=true, language=HLSL]
+VOut VShader(...)
+{
+	VOut output;
+
+	float2 movedCoords = texCoord * 2;
+		movedCoords.x -= 1;
+		movedCoords.y -= 1;
+	float4 svPos = float4(movedCoords, 0.0, 1.0);
+	output.svposition = svPos;
+	output.position = mul(final, position);
+
+	// set the ambient light
+	output.color = ambientcol;
+
+	
+	float4 norm1 = normalize(mul(rotation, normal));
+	float diffusebrightness = saturate(dot(norm1,lightvec));
+	float4 norm = normalize(mul(final, normal));
+
+	//output.color += lightcol * diffusebrightness;
+
+	output.UVs.x = texCoord.x * SCREEN_WIDTH;
+	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
+
+	output.normal = norm;
+
+	output.camera = mul(final, lightPos);
+
+	output.mode = mode;
+
+
+	return output;
+}
+\end{lstlisting}
+\caption{Vertex Shader for first Pass of Depth Map accelerated by Pixel 
+Synchronization}
+\label{code:VShaderPSDepth}
+\end{figure}
+
+\begin{figure}[!htb]
+
+\begin{lstlisting}[breaklines=true, language=HLSL]
+float4 PShader(...) : SV_TARGET 
+{
+	float2 svPos = position.xy;
+	float mdepth = distance(position, camera);
+	uint2 uv = UVs;
+
+	svPos.y = 0 - svPos.y;
+	svPos += 1;
+	svPos = svPos / 2;
+
+	float2 newPos;
+
+	newPos.x = svPos.x * SCREEN_WIDTH;
+	newPos.y = svPos.y * SCREEN_HEIGHT;
+
+	fromLightX[uv] = newPos.x;
+	fromLightY[uv] = newPos.y;
+	uvDepth[uv] = mdepth;
+
+	return color;
+}
+\end{lstlisting}
+\caption{Pixel Shader from first pass of Pixel Synchronization-Accelerated 
+depth mapping.}
+\label{code:PixelShaderPSDepth}
+\end{figure}
+
+\subsubsection{Pass 2}
+
+Now that depth information regarding the model has been gathered, the second
+pass is where the pixel synchronization happens. The vertex shader in this
+pass stays relatively the same as the previous pass; however, the projected
+model coordinates are passed to the SV\_POSITION semantic, rather than the
+converted texture coordinates, as in the previous pass. To see how the shallow
+buffer is created, refer to figure \ref{code:POShader}. Within this pixel
+shader, the depth with respect to the light is recorded for every pixel/
+fragment. Then, the pixels are ordered, and then shallowest depth at that
+pixel location is recorded.
+
+\begin{figure}[!htb]
+\begin{lstlisting}[breaklines=true, language=HLSL]
+float4 POShader(...) : SV_TARGET
+{
+	uint2 pixelAddr = svposition.xy;
+
+	float pos = distance(position, camera);
+
+	IntelExt_Init();
+	IntelExt_BeginPixelShaderOrdering();
+
+	if (pos < Shallow[pixelAddr])
+	{
+		Shallow[pixelAddr] = pos;
+	}
+
+	return color;
+	
+}
+
+\end{lstlisting}
+\caption{Pixel Ordering step of the alternate approach to depth mapping}
+\label{code:POShader}
+\end{figure}
+
+\noindent The main purpose of this pass is to map which part of the model is
+shallowest to the light at a certain pixel position. With the utilization of
+pixel synchronization, this is a very straightforward process, with a
+guarantee against race conditions. With the help of the information gathered
+from the previous pass, the indexing and access of this information is
+straightforward. The image that would be output to the screen is far less
+interesting than the texture-space rendering, as it is an orthogonal view of
+the object from the perspective of the light, as seen in figure
+\ref{pic:orthoPawn}. The purpose of the orthogonal projection is such that we
+get a true trajectory of the light through the model, and not a trajectory
+that follows perspective foreshortening. It is important to note that, within
+this pass, the object must be contained within the boundaries of the view
+volume, otherwise key texture-based information will be missed for large
+portions of the model. However, it is important to maximize the amount of
+screen space filled by the model for this path, to give as detailed depth
+information as possible.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{orthoPawn.jpg}
+	\caption{Orthogonal Projection of Pawn Model with repsect to the light.}
+	\label{pic:orthoPawn}
+\end{figure}
+
+\subsubsection{Pass 3}
+
+\label{section:SSSPass3}
+
+For the final pass, the graphics program applies phong illumination from the
+perspective of the eye position with a perspective foreshortening projection.
+In addition to phong illumination, the depth-based calculations are applied to
+the final colors of the image, as well. To keep things simple, the color's
+diffuse brightness is scaled based upon its orientation to the light, and its
+model-specific depth, based upon that orientation. As this is a modified Phong
+Illumination technique with added depth information, the Vertex Shader is
+nothing different from what has already been seen. The same Pixel Shader,
+PShader2(), is used for three different render modes. Figure
+\ref{code:SSSFinal} details the portion of the shader that adds the depth
+information to the coloring of the image. As such, each section will discuss a
+different piece of the greater pixel shader function.
+
+\begin{figure}[!htb]
+\begin{lstlisting}[language=HLSL]
+
+			    /*...*/
+
+if (!(mode & PHONG_RENDER))
+{
+	uint2 lightCoords;
+
+	lightCoords.x = fromLightX[uv];
+	lightCoords.y = fromLightY[uv];
+
+	float mdepth = uvDepth[uv];
+
+	float shallow = Shallow[lightCoords];
+
+	if ((mode & PIXSYNC_OFF) && 
+		  (uvDepth[uv] > Shallow[lightCoords])){
+
+		float4 lColor = lightcol;
+		lColor -= (uvDepth[uv] - 
+			Shallow[lightCoords]) * 3;
+			
+		diffuse += lColor;
+	}
+}
+
+			    /*...*/
+
+\end{lstlisting}
+\caption{Chunk of Pixel Shader for final pass of the the Pixel Ordering-powered Subsurface Scattering technique}
+\label{code:SSSFinal}
+\end{figure}
+
+\noindent \\ In this portion of the pixel shader, the program is checking to
+see if the SubSurface Scattering effect is activated. If so, the XY
+coordinates for the part of the model that is being processed (with respect to
+the light's view), the depth, and the shallow buffer are all referenced. The
+depth difference is then calculated and exaggerated by a factor of 3. The
+constant 3 was chosen in this case, as this best illustrated the effect
+without making it too exaggerated or underexaggerated. The variable, $lColor$,
+then subtracts this value from all of its components, then this color is added
+to the diffuse component of the pixel's final coloring. This is because when
+the subsurface scattering phenomenon takes place, the 'glow' of the object
+does take influence from the color of the light, as well as the object's
+diffuse color.
+
+
+\subsection{Bad Render Function and Shader Walkthrough}
+\label{subsubsection:BadRender}
+
+This first attempt at utilizing pixel shaders was retained within the project
+to prove why the initial information gathering pass is so necessary. For the
+sake of speed, it seems as though the graphics pipeline, on the hardware on
+which this project was run, makes choices to round some values. As this is the
+case, there are coordinate values that do not get properly interpolated across
+the pipeline. This results in texture holes, as members of the UAV do not end
+up being populated. For an idea of what this would look like, refer to figure
+\ref{pic:pBadRender}.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{pBadRender.jpg}
+	\caption{Pawn Rendered with the Attempted 2-Pass technique, colors exaggerated to better show the negative effect of this attempt.}
+	\label{pic:pBadRender}
+\end{figure}
+
+\noindent The hypothesis that the pipeline was causing texture holes was
+corroborated when the unwrapping of the model's surface with respect to
+texture space was completed. As soon as the model was first unwrapped, then
+pixel synchronization based upon depth was taken into account, all texture
+holes disappeared, giving a consistent, cohesive shadow/glow effect from the
+subsurface scatter approximation. Further attempts were made to make this
+implementation work, such as forcing the pipeline optimizations to be turned
+off, but not attempts yielded any different results in the image. For a larger
+version of figure \ref{pic:pBadRender}, refer to page
+\pageref{pic:bigBadRender}. 
+
+\subsection{Culling Demo Render Function and Shader Walkthrough}
+
+This demo was implemented to test to raw effect of pixel synchronization on
+the performance of the graphics pipeline. The performance results can be seen
+above. This demo had three different modes. One was a "No Cull" mode, which is
+self-explanatory. This mode was included in the demo, such that a measurement
+of performance could be taken when all of the model is rendered. There is a
+"Hardware Cull" mode, where measurements are taken for performance as well.
+All performance measurements are taken to compare against the "Software Cull"
+mode. The Software Cull mode is where culling within the shader takes place,
+witht he help of Pixel Synchronization. The purpose of culling within the
+shader was to give a visual result between the "No Cull" and the "Software
+Cull" modes. \\ \\ The "Software Cull" mode utilizes 2 UAV textures. One is a
+clear mask, and the other keeps track of the shallowest depth. The code in
+figure \ref{code:softCull} demonstrates how this works. In short, if the
+software cull flag is set, the shader program accesses the ClearMask UAV to
+see if another pixel at that location had been previously processed. If the
+pixel has not been processed previously, update the clear mask, and set the
+depth of the current pixel in flight in the cDepth UAV. If a pixel at that
+location has already been processed, check if the current pixel in flight is
+more shallow than the previous pixel. If so, overwrite this pixel location. If
+not, discard the current pixel in flight.
+
+\begin{figure}[!htb]
+\begin{lstlisting}[language=HLSL]
+
+			    /*...*/
+
+if ((mode & CULL_RENDER_MODE) && (mode & CULL_RENDER_SHADER))
+{
+	IntelExt_Init();
+	IntelExt_BeginPixelShaderOrdering();
+
+		uint2 pixAddr = svposition.xy;
+
+	switch (clearMask[pixAddr]){
+	case 0:
+		cDepth[pixAddr] = svposition.z;
+		clearMask[pixAddr]++;
+		break;
+	default:
+		if (cDepth[pixAddr] < svposition.z) discard;
+		break;
+	}
+
+}
+
+			    /*...*/
+
+\end{lstlisting}
+\caption{Software Culling Code Block Within PShader2}
+\label{code:softCull}
+\end{figure}
+
+\subsection{Refraction Attempt}
+\label{subsection:RefractionAttemptImplementation}
+
+This implementation was attempted, but not successful, as there was a
+limitation within the compiler that does not allow looping within the shader
+that depends on values within or related to the UAV. As this was the case, the
+attempted implementation is still a part of this project, though the shader
+compiler throws an error and terminates execution. This portion of the project
+also revealed the performance hit that is taken when the application side
+clears a UAV. This implementation would have executed in two passes.
+
+
+\subsubsection{Application-Side Overview}
+
+The biggest point to note is about a UAV in the format of a 3D texture, or 2D
+Texture Array. 
+
+\subsubsection{Shader Overview}
+
+\begin{description}
+
+\item[First Pass] \hfill \\
+
+For the first pass, the idea was to step through the entire view volume as a
+single chunk of voxels. The clear mask is a 3D texture, and is populated with
+volume-based information of the scene (is this element inside, outside, or the
+surface of the model?). The error in the shader occurred within this pass. The
+implementation of this shader checked a conditional to see which values to set
+in the voxel mask. The values and what they indicated were as follows:
+
+\begin{description}
+
+\item[0:] Voxel is outside of the model
+
+\item[1:] Voxel is on the surface of the model
+
+\item[2:] Voxel is inside of the model
+
+\end{description}
+
+\noindent Three values were used, such that if the render pass were to
+traverse the voxel mask and go from a value of 2 to a value of zero in the
+unit direction of the refracted ray, it would be known that the surface had
+been overshot. In the case of an overshot, there would be a backtrack process.
+However, the implementation never reached that case, as an informed decision
+was made regarding the feasibility of this demo. Despite this, a workaround
+was found for this first pass such that the error stopped being thrown. The
+solution was to set $VoxMask[CurrentPosition]$ to $(VoxMask[CurrentPosition] +
+1) \% 3$. Figure \ref{code:VoxMask} shows how this would look in code.
+
+\begin{figure}[!htb]
+\begin{lstlisting}[language=HLSL]
+[loop]
+for (i = voxPos.z + 1; i < VoxMask.GetZDimension(); i++)
+{
+	tempi.z = i;
+	VoxMask[tempi] = (VoxMask[tempi] + 1) % 3;
+	
+}
+
+\end{lstlisting}
+\caption{New loop logic for the population of the voxel mask}
+\label{code:VoxMask}
+\end{figure}
+
+\item[Second Pass] \hfill \\
+
+The second pass would have back culling active, and each pixel would trace
+through the model's voxelized representation in the unit direction of the
+refraction. After a surface was found, indicated by the voxelized clear mask,
+a second refract would take place based upon the stored normal vector at that
+location. After that refract took place, the cube/sphere mapped texture would
+be sampled to return the color at that pixel. The second pass was never
+implemented, as the first pass never successfully completed the testing phase,
+until after the decision to cease development of this demo. Regardless of the
+workaround found in the First Pass, there is no real way to work around having
+to check values inside of the Voxel Mask inside of the UAV, as checking
+conditions is key to traversal.
+
+\end{description}
+
 \section{Findings}
 
 There are a lot of quirks and behaviors that have been logged throughout the
@@ -683,27 +1273,234 @@ this section should save time on the setup and boilerplate side of things.
 \label{section:findings}
 \subsubsection{Raw Performance Check of Pixel Synchronization}
 
-When just using pixel synchronization, the performance takes a 10\% hit,
-regardless of model's resolution. This makes sense, since the pixel
-synchronization happens after the the primitive assembly and interpolation
-stage. To get as accurate of a measurment as possible, I disabled culling,
-such that every vertex of the model that is within the view volume is
-rendered. \\ \\ This metric is consistent with the documentation that intel
-provides, discussing pixel synchronization. This test was also run with the
-critical section containing the entirety of the pixel shader, which was the
-pixel shader stage of the Phong illumination technique. Phong illumination was
-chosen for this test, due to ease of programming, and knowing that the
-illumination was as correct as possible. See the figure below for comparisons.
-The graph is organized by model, complete with listing the resolution of the
-model (how many vertices), the frames per second performance of each model.
+With the data provided by figure \ref{pic:CDGraph}, the two results behaved in
+a generally predictable manner, with Hardware Culling being the fastest of the
+three options, with no culling coming in second, and shader-side, or software
+culling, coming in last. The trend for all three modes of the demo are to drop
+noticeably when the polygon count increases. However, there is a noticeable
+dip between the first three models. The low-resolution pawn actually has
+consistently poorer performance when rendered than the cube, which is to be
+expected, but the GPU performs worse when rendering the Sphere model, than it
+does with the Simple Pawn Model. The best and most logical explanation would
+be that the lower resolution pawn model is defined within its '.obj' file in
+such a way that causes the GPU to do more work, where the Sphere Model, on the
+other hand, is defined such that the GPU can more easily render it.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{cullDemoGraph.jpg}
+	\caption{Cluster Bar Visualization of Framerates, Sorted by Polygon Size of various models.}
+	\label{pic:CDGraph}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{CDByModel.jpg}
+	\caption{Cluster Bar Visualization of Framerates, Sorted by Model}
+	\label{pic:CDByModel}
+\end{figure}
+
+\noindent \\ There was an interesting trend between the No-Cull mode and the
+Software Cull mode, as well. The comparison between these two modes is key, as
+the Hardware culling mode does not pass all polygons and potential pixels
+through to the pixel shader stage, and these other two modes do. To get an
+idea of the raw toll of which pixel Synchronization takes, the results of
+these two modes were compared. In figure \ref{pic:CDFrameDiff}, the raw
+difference in framerate is shown, not a percentage. As can be seen, the actual
+numbered difference in frames varies only slightly, until a model much larger
+than the others is used. Then, the difference drops significantly. When
+compared with the Framerate output values given in figure \ref{pic:CDGraph},
+it can be concluded that Pixel Synchronization hinders performance with
+decreasing significance as the primitive assembly stage becomes more of the
+bottleneck. In other words, the more vertices the GPU has to process, the
+smaller the performance hit incurred by Pixel Synchronization. This conclusion
+can be further corroborated by examining \ref{pic:CDPercentGraph}. At first
+glance, this plot follows the same pattern as figure \ref{pic:CDFrameDiff}.
+However, this shows that the percentage of performance hit that is incurred
+decreases with model size. It is up to the programmer to make informed
+decisions about the size of models on which to run pixel synchronization.
+However, for culling, it is recommended that hardware culling be used wherever
+possible, unless the goal is to use pixel synchronization on a single-pass. 
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{CullDemoFrameDifference.jpg}
+	\caption{Plot of Differences of No-Cull Vs. Soft Cull Framerates}
+	\label{pic:CDFrameDiff}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{CDPercentGraph.jpg}
+	\caption{Plot of Differences of No-Cull Vs. Soft Cull Framerates}
+	\label{pic:CDPercentGraph}
+\end{figure}
 
 \subsubsection{Subsurface Scattering}
 
-\lipsum[24-38]
+The results from figure \ref{pic:SSSGraph} are just as expected, with Phong
+illumination winning out, performance wise. However, the performance of the
+Subsurface Scattering technique is high enough that it would be a viable
+technique for use, as it does not tax the GPU so much as to drop the
+performance to a less-than desirable frame rate. For increased image quality,
+it can be safely concluded that pixel synchronization can help in
+accomplishing straightforward solutions to depth-based rendering techniques.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{SSSGraph.jpg}
+	\caption{difference between the regular 1-pass phong illumination, timing of 2nd and 3rd passes of pixel synch SSS technique}
+	\label{pic:SSSGraph}
+\end{figure}
+
+\noindent  Figure ref{pic:SSSPerTechnique} shows an interesting phenomenon.
+Consider the left group of the bar graph. The pattern of the leftmost three
+members is the same as it has been throughout the other parts of the demo.
+However, on the right grouping, the pattern is flipped. One hypothesis that
+was devised and tested (results in figure \ref{pic:SSSOrthoSize}) was that it
+was the size of the screen space that was taken up by the orthogonal pixel
+synchronization step was where the pawn model gained a performance advantage
+over the other two models in question. However, as can be seen within figure
+\ref{pic:SSSOrthoSize}, this does not end up being the case. This suggested
+that the bottleneck could be happening during the first pass, where the models
+are unwrapped with respect to texture space, which led to a new hypothesis
+that the more texture coordinates that were covered by the model, higher the
+performance hit, as the information gathering and storing process takes
+longer, as more indices of the texture space are being accessed.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{SSSPerTechnique.jpg}
+	\caption{each model's performance, grouped by technique}
+	\label{pic:SSSPerTechnique}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{SSSOrthoSize.jpg}
+	\caption{Comparison of screen space taken up by model in pixel synchronization step}
+	\label{pic:SSSOrthoSize}
+\end{figure}
+
+\noindent   Consider figures \ref{pic:pawnSpace}, \ref{pic:sphereSpace} and
+\ref{pic:cubeTSpace}. As can be seen, the pawn's texture space takes up the
+least screen space in the first pass. Further, regardless of the number of
+vertices within the model, the more pixels that are in flight, the longer a
+render pass will take to complete. This conclusion can be corroborated with
+the graph in figure \ref{pic:Pass1Graph}. The amount of gray space (pixels
+never dispatched) seems to correlate with the performance results. As such, it
+is safe to conclude that the bottleneck for models with sufficiently low
+vertex counts seems to be the first pass for gathering depth and screen space
+knowledge, from the perspective of the light source.
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{pawnSpace2.jpg}
+	\caption{Texture space rendering of low-res pawn model}
+	\label{pic:pawnSpace}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{sphereSpace.jpg}
+	\caption{Texture space rendering of sphere}
+	\label{pic:sphereSpace}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{cubeTSpace.jpg}
+	\caption{Texture space rendering of cube}
+	\label{pic:cubeTSpace}
+\end{figure}
+
+\begin{figure}[!htb]
+	\centering
+	\includegraphics[width=1.0\textwidth]{Pass1Graph.jpg}
+	\caption{Texture space render performance}
+	\label{pic:Pass1Graph}
+\end{figure}
 
 \subsubsection{Refraction}
 
-\lipsum[39-53]
+The attempt at utilizing pixel synchronization to accomplish refraction was
+not successful. This being the case, there are no graphs or comparisons of
+performance for this portion. However, a formal definition of the algorithm
+will be provided, such as to give a hypothetical evaluation on performance
+costs with comparison to the simple solution to refraction. \\ \\ From a
+high-level perspective, the simple refraction algorithm can be defined in two
+steps. These steps assume that the skybox, or cube map, has already been
+processed and rendered, and the steps below take place for each pixel.
+
+\begin{description}
+
+\item[Step 1:] calculate the bounce of the eye's ray against the surface
+normal.
+
+\item[Step 2:] map the direction of this bounce to a location of the
+environment texture.
+
+\end{description}
+
+\noindent With such a simple set of steps, it can be said that for each pixel,
+this algorithm runs in constant time, O(1), as it has no other dependencies
+upon other pixels, or tracing over another data structure. With this simple
+implementation in mind, consider the following steps for the more accurate
+refraction approximation. There are two render passes within this method:
+
+\begin{description}
+
+\item[Render Pass 1:] \hfill
+
+\begin{description} 
+
+\item[Step 1:] Store surface normal at the object's location within a 3D
+texture that encases the entire view volume.
+
+\item[Step 2:] Mark current location to indicate it is at the surface of the
+model. Mark all subsequent locations in the Z direction to indicate that they
+are either inside of outside of the model (explained in figure
+\ref{code:VoxMask}).
+
+\end{description}
+
+\item[Render Pass 2:] \hfill
+
+\begin{description}
+
+\item[Step 1:] Calculate ray bounce relative to pixel's surface normal.
+
+\item[Step 2:] Trace through the scene while within the object in the unit direction of the ray bounce, until the surface is found again.
+
+\item[Step 3:] Calculate additional ray bounce.
+
+\item[Step 4:] Sample environment texture from resulting bounce.
+
+\end{description}
+
+\end{description}
+
+\noindent Considering the first pass only, Step 2 requires that each pixel
+step through a texture. In this case, it is assumed that the texture is
+N\textsuperscript{3} in size. This means that in the worst case, each pixel
+would take linear, O(N), time to complete its execution. Render Pass 2 is more
+complex than the first, as there is more than just data gathering happening at
+this point in the algorithm. In Step 2, the gathered data is traversed in the
+unit direction of the ray bounce. this being the case, the ray now moves in
+the x, y an z directions. However, even though this could be 3N time, it is
+simplified to general linear, O(N), time. Overall, the total runtime can be
+expressed as follows:
+
+\begin{equation}
+Total Render Time = RenderCall + O(N) + RenderCall + O(N)
+\end{equation}
+
+\noindent \\ Within grahpics, even linear time algorithms can be quite costly
+to performance, as this linear run time applies to every pixel within the
+pipeline. What this equation translates to, basically, is that were this
+algorithm were to be implemented, the designer of the implementation must make
+a careful hardware-specific decision about how large the texture should be to
+acheive an optimum balance between performance and image quality.
 
 \section{Observations}
 
@@ -1524,7 +2321,7 @@ for (i = voxPos.z; i < 512; i++){
 
 \noindent The code within figure \ref{code:TempArrInit} is attempting to copy
 members of the voxel mask, which will be described more in-depth within
-section \ref{subsection:RefractionAttempt}. The idea behind this was, once
+section \ref{subsection:RefractionAttemptImplementation}. The idea behind this was, once
 these values were copied over to the temporary array, they could be looped
 upon with conditions, then updated. Following the update of the temporary
 array, the shader would finally update the UAV in the z direction at the
@@ -1623,396 +2420,18 @@ hardware be abandoned altogether.
 
 \pagebreak
 
-\section{Implementation Discussion}
-\label{section:ImplementationDiscussion}
 
-This section will detail important parts of code in-depth such that a majority
-of questions may be answered. The idea is that another student may be able to
-pick up the code I have implemented and quickly understand what decisions were
-made and why, which pieces of code depend on others, and so on. This way,
-changes can be made in an effective, informed manner, rather than with a
-trial-and-error approach, which can prove to be far less efficient.
 
-\subsection{Boilerplate Code}
-\label{subsection:BoilerPlateImplementation}
-
-A majority of the Boilerplate functionality stays consistend between the two
-code bodies. As this is the case, the explanation of code setup,
-initialization and variable meanings will take place here. However, this
-section must not be considered to be a comprehensive tutorial on DirectX, but
-help explain some of its differences to OpenGL, as the latter is used in this
-University's Curriculum.
-
-\subsubsection{Defining our Window}
-
-This code is straightforward, but could seem a bit foreign to a programmer who
-has not programmed in windows before. Right at the beginning of the program,
-two things must happen. Firstly, a window class must be defined and then
-registered with the operating system as seen in figure  \ref{code:winClass}.
-Within this code snippet, the important lines are 6, 7, and 12.
-
-\begin{description}
-
-\item[Line 6:] Here, the programmer is stating that this window will be 
-redrawn.
-
-\item[Line 7:] This is a pointer to a separate function called WindowProc.
-WindowProc is where all of the messages and interactions with that window
-will be coded. In other words, WindowProc will execute every time there is a
-message to the window.
-
-\item[Line 12:] This is where the program attempts to register the window
-class with the operating system. In otherwords, this determines whether the
-program has permission to create windows of this type of class.
-
-\end{description}
-
-\noindent If successfull with this portion, the program may now attempt to
-create a window instance, as seen in the code snippet in figure
-\ref{code:CreateWindow}. After the variable, $hWnd$, has been populated, it
-will be used later to link a D3D device. Another point worth noting is that
-the window size used was 1920x1080, as part of this project was to ensure that
-this effect could be used on a window size that is commonly used within
-industry for video games and scientific visualizations.
-
-\begin{figure}[h!]
-\begin{lstlisting}[language=C++]
-WNDCLASSEX wc;
-
-ZeroMemory(&wc, sizeof(WNDCLASSEX));
-
-wc.cbSize = sizeof(WNDCLASSEX);
-wc.style = CS_HREDRAW | CS_VREDRAW;
-wc.lpfnWndProc = WindowProc;
-wc.hInstance = hInstance;
-wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-wc.lpszClassName = L"WindowClass";
-
-if (!RegisterClassEx(&wc))
-{
-	int nResult = GetLastError();
-	MessageBox(NULL,
-		L"DirectX window class creation failed\r\n",
-		L"Window Class Failed",
-		MB_ICONERROR);
-	exit(EXIT_FAILURE);
-}
-\end{lstlisting}
-
-\caption{Creating and registering a Window Class}
-\label{code:winClass}
-\end{figure}
-
-\begin{figure}[h!]
-\begin{lstlisting}[language=HLSL]
-RECT wr = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
-AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-
-hWnd = CreateWindowEx(NULL,
-	L"WindowClass",
-	L"Pawlowski Pixel Ordering Research",
-	WS_OVERLAPPEDWINDOW,
-	300,
-	300,
-	wr.right - wr.left,
-	wr.bottom - wr.top,
-	NULL,
-	NULL,
-	hInstance,
-	NULL);
-
-ShowWindow(hWnd, nCmdShow);
-\end{lstlisting}
-\caption{Create and Show the Window}
-\label{code:CreateWindow}
-\end{figure}
-
-\subsubsection{Direct3D Setup}
-
-When the program is ready to initialize direct3D, all it needs is for the
-calling process to pass the pointer to the window instance to which the
-Direct3D device will be tied. As there is a very excellent
-\href{http://www.directxtutorial.com}{tutorial website}(listed below), There
-will not be any code included within this portion. \\ \\ The most important
-difference between Direct3D and OpenGL is the use of COM Objects. COM
-(Component Object Model) Objects are Microsoft's way of making interprocess
-communication, or even IO with peripherals easier. In this case, Direct3D
-devices are represented with COM objects. As this is the case, there are
-slightly different ways to interact with the GPU when using Direct3D. For more
-information, please refer to
-\href{http://www.directxtutorial.com}{http://www.directxtutorial.com}, or
-microsoft's \href{https://msdn.microsoft.com/en-
-us/library/windows/desktop/ms690343(v=vs.85).aspx}{own documentation} online.
-
-\subsubsection{Constant Buffer Values Explained}
-
-
-
-\subsection{SubSurface Scattering Shader Walkthrough} 
-
-\label{subsection:SSSImplementation}
-
-\subsubsection{Pass 1}
-
-For the first render pass, texture-based knowledge of the model must be
-stored. As will be detailed in section \ref{subsubsection:BadRender}, this
-pass was added to ensure all texture space is covered when passing the model
-through the pipeline. Within this pass, the scene is projected from the
-perspective of the light, toward the object. After the model has been
-transformed, the texture coordinates of each vertex is passed throught he
-pipeline as the X and Y of the SV\_POSITION HLSL semantic. This maps the
-entire surface of the model to the viewport. If this pass were to be rendered
-to the screen, it would look like figure \ref{pic:texSpace}. As can be seen,
-the different portions of the pawn model are easily discernable. However,
-other objects take the entire screen space, as seen in figure
-\ref{pic:cubeTSpace}. 
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=1.0\textwidth]{textureSpace.jpg}
-	\caption{Pawn Model's Surface Unwrapped With Respect to Texture Space}
-	\label{pic:texSpace}
-\end{figure}
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=1.0\textwidth]{cubeTSpace.jpg}
-	\caption{Cube Model's Surface Unwrapped With Repsect to Texture Space, Shown to Illustrate a Model Whose Surface Spans the entire texture coordinate range}
-	\label{pic:cubeTSpace}
-\end{figure}
-
-\noindent Mapping the model's surface to the screen through texture space is a
-necessary step, as it guarantees that all of the model is rendered, thus
-information is stored at all possible locations in the model's texture space.
-The results of the implementation in section \ref{subsubsection:BadRender}
-will illustrate why this pass is necessary. \\ \\ In figure
-\ref{code:VShaderPSDepth}, the key code lines are lines 5 through 9. Here, the
-program is converting the texture coordinates to a value ranging from -1 to 1,
-which forces the texture coordinates to be interpolated and displayed on the
-screen. On line 10, the program is ensureng that the 3D coordinates are still
-being passed through. These coordinates are given an orthogonal projection.
-This is key for storing which portions of the model are on which pixel
-position if the model were to be projected correctly into screen space through
-the pipeline. In other words, the program is keeping track of the model's 3D
-position, such that it can be used to store information within the pixel
-shader. \\ \\ The Pixel Shader for this pass, figure
-\ref{code:PixelShaderPSDepth}, the program finds what the screen-space
-position should have been for the correctly projected 3D model (lines 3, 7
-through 9, 13 and 14) and stores them into UAV textures representing the X and
-Y coordinates of the model's screen position from the perspective of the light
-(lines 16 and 17). These values are stored as individuals, as tuples have a
-difficult time being used in a UAV when using Pixel Synchronization. These are
-stored at the texture coordinates, as texture coordinates stay at the same
-location of the model's surface, regardless of the model's orientation in
-space. Lastly, the depth with respect to the light's position is stored in a
-depth UAV. Writing this pass to the screen yields a result that can look
-somewhat like an abstract painting, such as figure \ref{pic:logTSpace}.
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=1.0\textwidth]{logTSpace.jpg}
-	\caption{Log Model's Surface Unwrapped With Repsect to Texture Space}
-	\label{pic:logTSpace}
-\end{figure}
-
-\begin{figure}[h]
-\begin{lstlisting}[breaklines=true, language=HLSL]
-VOut VShader(...)
-{
-	VOut output;
-
-	float2 movedCoords = texCoord * 2;
-		movedCoords.x -= 1;
-		movedCoords.y -= 1;
-	float4 svPos = float4(movedCoords, 0.0, 1.0);
-	output.svposition = svPos;
-	output.position = mul(final, position);
-
-	// set the ambient light
-	output.color = ambientcol;
-
-	
-	float4 norm1 = normalize(mul(rotation, normal));
-	float diffusebrightness = saturate(dot(norm1,lightvec));
-	float4 norm = normalize(mul(final, normal));
-
-	//output.color += lightcol * diffusebrightness;
-
-	output.UVs.x = texCoord.x * SCREEN_WIDTH;
-	output.UVs.y = texCoord.y * SCREEN_HEIGHT;
-
-	output.normal = norm;
-
-	output.camera = mul(final, lightPos);
-
-	output.mode = mode;
-
-
-	return output;
-}
-\end{lstlisting}
-\caption{Vertex Shader for first Pass of Depth Map accelerated by Pixel 
-Synchronization}
-\label{code:VShaderPSDepth}
-\end{figure}
-
-\begin{figure}[h]
-
-\begin{lstlisting}[breaklines=true, language=HLSL]
-float4 PShader(...) : SV_TARGET 
-{
-	float2 svPos = position.xy;
-	float mdepth = distance(position, camera);
-	uint2 uv = UVs;
-
-	svPos.y = 0 - svPos.y;
-	svPos += 1;
-	svPos = svPos / 2;
-
-	float2 newPos;
-
-	newPos.x = svPos.x * SCREEN_WIDTH;
-	newPos.y = svPos.y * SCREEN_HEIGHT;
-
-	fromLightX[uv] = newPos.x;
-	fromLightY[uv] = newPos.y;
-	uvDepth[uv] = mdepth;
-
-	return color;
-}
-\end{lstlisting}
-\caption{Pixel Shader from first pass of Pixel Synchronization-Accelerated 
-depth mapping.}
-\label{code:PixelShaderPSDepth}
-\end{figure}
-
-\subsubsection{Pass 2}
-
-Now that depth information regarding the model has been gathered, the second
-pass is where the pixel synchronization happens. The vertex shader in this
-pass stays relatively the same as the previous pass; however, the projected
-model coordinates are passed to the SV\_POSITION semantic, rather than the
-converted texture coordinates, as in the previous pass. To see how the shallow
-buffer is created, refer to figure \ref{code:POShader}. Within this pixel
-shader, the depth with respect to the light is recorded for every pixel/
-fragment. Then, the pixels are ordered, and then shallowest depth at that
-pixel location is recorded.
-
-\begin{figure}[h]
-\begin{lstlisting}[breaklines=true, language=HLSL]
-float4 POShader(...) : SV_TARGET
-{
-	uint2 pixelAddr = svposition.xy;
-
-	float pos = distance(position, camera);
-
-	IntelExt_Init();
-	IntelExt_BeginPixelShaderOrdering();
-
-	if (pos < Shallow[pixelAddr])
-	{
-		Shallow[pixelAddr] = pos;
-	}
-
-	return color;
-	
-}
-
-\end{lstlisting}
-\caption{Pixel Ordering step of the alternate approach to depth mapping}
-\label{code:POShader}
-\end{figure}
-
-\noindent The main purpose of this pass is to map which part of the model is
-shallowest to the light at a certain pixel position. With the utilization of
-pixel synchronization, this is a very straightforward process, with a
-guarantee against race conditions. With the help of the information gathered
-from the previous pass, the indexing and access of this information is
-straightforward. The image that would be output to the screen is far less
-interesting than the texture-space rendering, as it is an orthogonal view of
-the object from the perspective of the light, as seen in figure
-\ref{pic:orthoPawn}. The purpose of the orthogonal projection is such that we
-get a true trajectory of the light through the model, and not a trajectory
-that follows perspective foreshortening. It is important to note that, within
-this pass, the object must be contained within the boundaries of the view
-volume, otherwise key texture-based information will be missed for large
-portions of the model. However, it is important to maximize the amount of
-screen space filled by the model for this path, to give as detailed depth
-information as possible.
-
-\begin{figure}[h]
-	\centering
-	\includegraphics[width=1.0\textwidth]{orthoPawn.jpg}
-	\caption{Orthogonal Projection of Pawn Model with repsect to the light.}
-	\label{pic:orthoPawn}
-\end{figure}
-
-\subsubsection{Pass 3}
-
-\label{section:SSSPass3}
-
-For the final pass, the graphics program applies phong illumination from the
-perspective of the eye position with a perspective foreshortening projection.
-In addition to phong illumination, the depth-based calculations are applied to
-the final colors of the image, as well. To keep things simple, the color's
-diffuse brightness is scaled based upon its orientation to the light, and its
-model-specific depth, based upon that orientation. As this is a modified Phong
-Illumination technique with added depth information, the Vertex Shader is
-nothing different from what has already been seen. The same Pixel Shader,
-PShader2(), is used for three different render modes. Figure
-\ref{code:SSSFinal} details the portion of the shader that adds the depth
-information to the coloring of the image. As such, each section will discuss a
-different piece of the greater pixel shader function.
-
-\begin{figure}[h]
-\begin{lstlisting}[language=HLSL]
-
-			    /*...*/
-
-if (!(mode & PHONG_RENDER))
-{
-	uint2 lightCoords;
-
-	lightCoords.x = fromLightX[uv];
-	lightCoords.y = fromLightY[uv];
-
-	float mdepth = uvDepth[uv];
-
-	float shallow = Shallow[lightCoords];
-
-	if ((mode & PIXSYNC_OFF) && 
-		  (uvDepth[uv] > Shallow[lightCoords])){
-
-		float4 lColor = lightcol;
-		lColor -= (uvDepth[uv] - 
-			Shallow[lightCoords]) * 3;
-			
-		diffuse += lColor;
-	}
-}
-
-			    /*...*/
-
-\end{lstlisting}
-\caption{Chunk of Pixel Shader for final pass of the the Pixel Ordering-powered Subsurface Scattering technique}
-\label{code:SSSFinal}
-\end{figure}
-
-
-
-\subsection{Bad Render Function and Shader Walkthrough}
-
-\label{subsubsection:BadRender}
-
-\subsubsection{Culling Demo Render Function and Shader Walkthrough}
-
-\subsection{Refraction Attempt}
-
-\label{subsection:RefractionAttemptImplementation}
-
-\subsubsection{Overview of Implementation}
-
+\pagebreak
 
 \section{Images of Results}
+
+\begin{figure}[htb!]
+	\centering
+	\includegraphics[width=1.0\textwidth]{pBadRenderSideways.jpg}
+	\caption{High Resolution image of first attempt at pixel synchronization subsurface scattering approximation.}
+	\label{pic:bigBadRender}
+\end{figure}
+
 
 \end{document}

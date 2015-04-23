@@ -1,7 +1,7 @@
 #include "./IGFXExtensions/IntelExtensions.hlsl"
 
-#define SCREEN_WIDTH	800.f
-#define SCREEN_HEIGHT	600.f
+#define SCREEN_WIDTH	1920.f
+#define SCREEN_HEIGHT	1080.f
 
 cbuffer ConstantBuffer
 {
@@ -72,15 +72,15 @@ float4 PShader(float4 svposition : SV_POSITION, float4 color : COLOR, float4 pos
 	float pos = distance(position, camera);
 	float mdepth = distance(position, camera);
 
-	fromLightX[uv] = pixelAddr.x;
-	fromLightY[uv] = pixelAddr.y;
+	fromLightX[uv] = pixelAddr.x + 1;
+	fromLightY[uv] = pixelAddr.y + 1;
 	uvDepth[uv] = mdepth;
 
 	IntelExt_Init();
 
 	IntelExt_BeginPixelShaderOrdering();
 
-	if (pos < Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
+	if (pos > Shallow[pixelAddr]) Shallow[pixelAddr] = pos;
 	
 	else color.g *= 1 + (pos - Shallow[pixelAddr]);
 
@@ -99,7 +99,7 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 
 	float tol = 25.05;
 
-	if ((deg <= 90.f - tol) && (deg >= 90.f + tol)) return color;
+	//if ((deg <= 90.f - tol) && (deg >= 90.f + tol)) return color;
 
 	float2 lightCoords;
 
@@ -114,12 +114,12 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 	if ((lightCoords.x == -1) && (lightCoords.y == -1)){
 		color.r = 1.0;
 	}
-
+	
 	float mdepth = uvDepth[uv];
 
 	float shallow = Shallow[ilc];
 
-	if (uvDepth[uv] > Shallow[lightCoords]) color.rgb -= (mdepth - shallow) * .5;
+	if (mdepth > shallow) color *= (mdepth - shallow) * 3;
 
 	return color;
 }

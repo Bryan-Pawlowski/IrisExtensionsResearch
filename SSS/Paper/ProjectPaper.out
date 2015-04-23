@@ -21,42 +21,43 @@
 \BOOKMARK [3][-]{subsubsection.3.1.1}{Vertex Shader}{subsection.3.1}% 21
 \BOOKMARK [2][-]{subsection.3.2}{Better Convex Refraction With Pixel Synchronization}{section.3}% 22
 \BOOKMARK [3][-]{subsubsection.3.2.1}{Shader-Based Description of Implementation}{subsection.3.2}% 23
-\BOOKMARK [1][-]{section.4}{Findings}{}% 24
-\BOOKMARK [2][-]{subsection.4.1}{Performance Metrics}{section.4}% 25
-\BOOKMARK [3][-]{subsubsection.4.1.1}{Raw Performance Check of Pixel Synchronization}{subsection.4.1}% 26
-\BOOKMARK [3][-]{subsubsection.4.1.2}{Subsurface Scattering}{subsection.4.1}% 27
-\BOOKMARK [3][-]{subsubsection.4.1.3}{Refraction}{subsection.4.1}% 28
-\BOOKMARK [1][-]{section.5}{Observations}{}% 29
-\BOOKMARK [2][-]{subsection.5.1}{Creating and Using Unordered Access Views}{section.5}% 30
-\BOOKMARK [2][-]{subsection.5.2}{Unordered Access View Limitations and Recommendations}{section.5}% 31
-\BOOKMARK [2][-]{subsection.5.3}{Pixel Synchronization Behavior}{section.5}% 32
-\BOOKMARK [2][-]{subsection.5.4}{Coding and Behavior Quirks}{section.5}% 33
-\BOOKMARK [3][-]{subsubsection.5.4.1}{Working With the GPU Device on the Application Side}{subsection.5.4}% 34
-\BOOKMARK [3][-]{subsubsection.5.4.2}{Pipeline Behavior}{subsection.5.4}% 35
-\BOOKMARK [3][-]{subsubsection.5.4.3}{Placement of Pixel Synchronization call}{subsection.5.4}% 36
-\BOOKMARK [3][-]{subsubsection.5.4.4}{Vertices are Still the Bottleneck}{subsection.5.4}% 37
-\BOOKMARK [2][-]{subsection.5.5}{Suggestions and Advice When Using Pixel Synchronization}{section.5}% 38
-\BOOKMARK [2][-]{subsection.5.6}{General Suggestions and Advice}{section.5}% 39
-\BOOKMARK [1][-]{section.6}{Conclusion and Recommended Future Work}{}% 40
-\BOOKMARK [2][-]{subsection.6.1}{Conclusions About the Utility of Pixel Synchronization}{section.6}% 41
-\BOOKMARK [3][-]{subsubsection.6.1.1}{Key Observations}{subsection.6.1}% 42
-\BOOKMARK [2][-]{subsection.6.2}{What the Findings Mean}{section.6}% 43
-\BOOKMARK [2][-]{subsection.6.3}{Where to Go From Here}{section.6}% 44
-\BOOKMARK [3][-]{subsubsection.6.3.1}{Finding a Viable Workaround for Looping Over UAVs}{subsection.6.3}% 45
-\BOOKMARK [3][-]{subsubsection.6.3.2}{Pixel Synch Used With Geometry Shaders}{subsection.6.3}% 46
-\BOOKMARK [3][-]{subsubsection.6.3.3}{Hack the Pipeline and Use Pixel Synchronization for Parallel Algorithms}{subsection.6.3}% 47
-\BOOKMARK [3][-]{subsubsection.6.3.4}{Benchmarking the Efficiency of Pixel Ordering/Interlock on Discrete Hardware, Compared to an Integrated Grahpics Architecture}{subsection.6.3}% 48
-\BOOKMARK [1][-]{section.7}{Implementation Discussion}{}% 49
-\BOOKMARK [2][-]{subsection.7.1}{Boilerplate Code}{section.7}% 50
-\BOOKMARK [3][-]{subsubsection.7.1.1}{Defining our Window}{subsection.7.1}% 51
-\BOOKMARK [3][-]{subsubsection.7.1.2}{Direct3D Setup}{subsection.7.1}% 52
-\BOOKMARK [3][-]{subsubsection.7.1.3}{Constant Buffer Values Explained}{subsection.7.1}% 53
-\BOOKMARK [2][-]{subsection.7.2}{SubSurface Scattering Shader Walkthrough}{section.7}% 54
-\BOOKMARK [3][-]{subsubsection.7.2.1}{Pass 1}{subsection.7.2}% 55
-\BOOKMARK [3][-]{subsubsection.7.2.2}{Pass 2}{subsection.7.2}% 56
-\BOOKMARK [3][-]{subsubsection.7.2.3}{Pass 3}{subsection.7.2}% 57
-\BOOKMARK [2][-]{subsection.7.3}{Bad Render Function and Shader Walkthrough}{section.7}% 58
-\BOOKMARK [3][-]{subsubsection.7.3.1}{Culling Demo Render Function and Shader Walkthrough}{subsection.7.3}% 59
-\BOOKMARK [2][-]{subsection.7.4}{Refraction Attempt}{section.7}% 60
-\BOOKMARK [3][-]{subsubsection.7.4.1}{Overview of Implementation}{subsection.7.4}% 61
-\BOOKMARK [1][-]{section.8}{Images of Results}{}% 62
+\BOOKMARK [1][-]{section.4}{Implementation Discussion}{}% 24
+\BOOKMARK [2][-]{subsection.4.1}{Boilerplate Code}{section.4}% 25
+\BOOKMARK [3][-]{subsubsection.4.1.1}{Defining our Window}{subsection.4.1}% 26
+\BOOKMARK [3][-]{subsubsection.4.1.2}{Direct3D Setup}{subsection.4.1}% 27
+\BOOKMARK [3][-]{subsubsection.4.1.3}{Constant Buffer Values Explained}{subsection.4.1}% 28
+\BOOKMARK [2][-]{subsection.4.2}{SubSurface Scattering Shader Walkthrough}{section.4}% 29
+\BOOKMARK [3][-]{subsubsection.4.2.1}{Pass 1}{subsection.4.2}% 30
+\BOOKMARK [3][-]{subsubsection.4.2.2}{Pass 2}{subsection.4.2}% 31
+\BOOKMARK [3][-]{subsubsection.4.2.3}{Pass 3}{subsection.4.2}% 32
+\BOOKMARK [2][-]{subsection.4.3}{Bad Render Function and Shader Walkthrough}{section.4}% 33
+\BOOKMARK [2][-]{subsection.4.4}{Culling Demo Render Function and Shader Walkthrough}{section.4}% 34
+\BOOKMARK [2][-]{subsection.4.5}{Refraction Attempt}{section.4}% 35
+\BOOKMARK [3][-]{subsubsection.4.5.1}{Application-Side Overview}{subsection.4.5}% 36
+\BOOKMARK [3][-]{subsubsection.4.5.2}{Shader Overview}{subsection.4.5}% 37
+\BOOKMARK [1][-]{section.5}{Findings}{}% 38
+\BOOKMARK [2][-]{subsection.5.1}{Performance Metrics}{section.5}% 39
+\BOOKMARK [3][-]{subsubsection.5.1.1}{Raw Performance Check of Pixel Synchronization}{subsection.5.1}% 40
+\BOOKMARK [3][-]{subsubsection.5.1.2}{Subsurface Scattering}{subsection.5.1}% 41
+\BOOKMARK [3][-]{subsubsection.5.1.3}{Refraction}{subsection.5.1}% 42
+\BOOKMARK [1][-]{section.6}{Observations}{}% 43
+\BOOKMARK [2][-]{subsection.6.1}{Creating and Using Unordered Access Views}{section.6}% 44
+\BOOKMARK [2][-]{subsection.6.2}{Unordered Access View Limitations and Recommendations}{section.6}% 45
+\BOOKMARK [2][-]{subsection.6.3}{Pixel Synchronization Behavior}{section.6}% 46
+\BOOKMARK [2][-]{subsection.6.4}{Coding and Behavior Quirks}{section.6}% 47
+\BOOKMARK [3][-]{subsubsection.6.4.1}{Working With the GPU Device on the Application Side}{subsection.6.4}% 48
+\BOOKMARK [3][-]{subsubsection.6.4.2}{Pipeline Behavior}{subsection.6.4}% 49
+\BOOKMARK [3][-]{subsubsection.6.4.3}{Placement of Pixel Synchronization call}{subsection.6.4}% 50
+\BOOKMARK [3][-]{subsubsection.6.4.4}{Vertices are Still the Bottleneck}{subsection.6.4}% 51
+\BOOKMARK [2][-]{subsection.6.5}{Suggestions and Advice When Using Pixel Synchronization}{section.6}% 52
+\BOOKMARK [2][-]{subsection.6.6}{General Suggestions and Advice}{section.6}% 53
+\BOOKMARK [1][-]{section.7}{Conclusion and Recommended Future Work}{}% 54
+\BOOKMARK [2][-]{subsection.7.1}{Conclusions About the Utility of Pixel Synchronization}{section.7}% 55
+\BOOKMARK [3][-]{subsubsection.7.1.1}{Key Observations}{subsection.7.1}% 56
+\BOOKMARK [2][-]{subsection.7.2}{What the Findings Mean}{section.7}% 57
+\BOOKMARK [2][-]{subsection.7.3}{Where to Go From Here}{section.7}% 58
+\BOOKMARK [3][-]{subsubsection.7.3.1}{Finding a Viable Workaround for Looping Over UAVs}{subsection.7.3}% 59
+\BOOKMARK [3][-]{subsubsection.7.3.2}{Pixel Synch Used With Geometry Shaders}{subsection.7.3}% 60
+\BOOKMARK [3][-]{subsubsection.7.3.3}{Hack the Pipeline and Use Pixel Synchronization for Parallel Algorithms}{subsection.7.3}% 61
+\BOOKMARK [3][-]{subsubsection.7.3.4}{Benchmarking the Efficiency of Pixel Ordering/Interlock on Discrete Hardware, Compared to an Integrated Grahpics Architecture}{subsection.7.3}% 62
+\BOOKMARK [1][-]{section.8}{Images of Results}{}% 63

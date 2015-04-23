@@ -181,6 +181,7 @@ bool cRender = false;
 bool pass1 = false;
 bool pass2 = false;
 bool pass3 = true;
+bool big = true;
 
 unsigned int cowVerts;
 
@@ -485,6 +486,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPara
 			break;
 		case ' ':
 			rotate = !rotate;
+			break;
+		case 'z':
+			big = !big;
 			break;
 		default:
 			break;
@@ -832,8 +836,9 @@ void RenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 10, 10, -5, 5);
-		
+	if(big)D3DXMatrixOrthoLH(&matProjection, 10, 10, -5, 5);
+	else D3DXMatrixOrthoLH(&matProjection, 20, 20, -5, 5);
+
 	D3DXMATRIX Final, Rotation, modelView, cFinal, cRotation, cModelView;
 
 	Final = matRotate * matView * matProjection;
@@ -1049,7 +1054,7 @@ void InitGraphics(void)
 	ZeroMemory(&bd, sizeof(bd));
 
 	myModel = (Model *)malloc(sizeof(Model));
-	int res1 = myModel->modelInit("pawn.obj");
+	int res1 = myModel->modelInit("pawn2.obj");
 	if (!res1){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -1069,7 +1074,7 @@ void InitGraphics(void)
 	//load sphere model for skybox
 
 	Model *sphereModel = (Model *)malloc(sizeof(Model));
-	int res2 = sphereModel->modelInit("log.obj");
+	int res2 = sphereModel->modelInit("sphere.obj");
 	if (!res2){
 
 		bd.Usage = D3D11_USAGE_DYNAMIC;
@@ -1337,7 +1342,7 @@ void BadRenderFrame(void)
 	CBUFFER cBuffer;
 
 	cBuffer.LightVector = Light;
-	cBuffer.LightColor = D3DXCOLOR(1.f, 1.f, 1.f, 1.0f);
+	cBuffer.LightColor = D3DXCOLOR(.29f, .29f, .29f, 1.0f);
 	cBuffer.AmbientColor = Ambient;
 	cBuffer.LightPos = Light;
 	cBuffer.mode = displayMode;
@@ -1380,7 +1385,7 @@ void BadRenderFrame(void)
 		&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
 	// create a projection matrix
-	D3DXMatrixOrthoLH(&matProjection, 3.4, 3.4, 0, 1);
+	D3DXMatrixOrthoLH(&matProjection, 10, 10, -5, 5);
 
 	// load the matrices into the constant buffer
 	cBuffer.Final = matRotate * matView * matProjection;
@@ -1418,7 +1423,7 @@ void BadRenderFrame(void)
 		//begin second pass.
 
 		D3DXMatrixLookAtLH(&matView,
-			&D3DXVECTOR3(-4.0f, 5.0f, -5.0f),   // the camera position
+			&D3DXVECTOR3(-10.0f, 10.0f, -6.0f),   // the camera position
 			&D3DXVECTOR3(0.0f, 0.0f, 0.0f),    // the look-at position
 			&D3DXVECTOR3(0.0f, 1.0f, 0.0f));   // the up direction
 
@@ -2182,9 +2187,16 @@ void PhongRenderFrame(void)
 		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 		devcon->Draw(cowVerts, 0);
 	}
+	else if (whichModel == MODEL_CUBE){
+		devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+		devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+		devcon->DrawIndexed(36, 0, 0);
+	}
 	else
 	{
 		devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+		//devcon->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
 		devcon->Draw(NumSphereVertices, 0);
 	}
 
@@ -2260,9 +2272,16 @@ void cullRenderFrame(void)
 		devcon->IASetVertexBuffers(0, 1, &pModelBuffer, &stride, &offset);
 		devcon->Draw(cowVerts, 0);
 	}
+	else if (whichModel == MODEL_CUBE){
+		devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+		devcon->IASetIndexBuffer(pIBuffer, DXGI_FORMAT_R32_UINT, 0);
+		devcon->DrawIndexed(36, 0, 0);
+	}
 	else
 	{
 		devcon->IASetVertexBuffers(0, 1, &sphereVertBuffer, &stride, &offset);
+		//devcon->IASetIndexBuffer(sphereIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
 		devcon->Draw(NumSphereVertices, 0);
 	}
 

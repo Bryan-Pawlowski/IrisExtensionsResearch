@@ -235,17 +235,15 @@ float4 PShader2(float4 svposition : SV_POSITION, float4 color : COLOR, float4 po
 		IntelExt_Init();
 		IntelExt_BeginPixelShaderOrdering();
 
-		float4 clearColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
-
 			uint2 pixAddr = svposition.xy;
 
-			clearMask[pixAddr]++;
 		switch (clearMask[pixAddr]){
-		case 1:
-			cDepth[pixAddr] = svposition.z;
+		case 0:
+			cDepth[pixAddr] = position.z;
+			clearMask[pixAddr]++;
 			break;
 		default:
-			if (cDepth[pixAddr] < svposition.z) color.a = 0.0f;
+			if (cDepth[pixAddr] < position.z) clip(-1);
 			break;
 		}
 

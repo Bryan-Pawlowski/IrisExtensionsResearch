@@ -831,7 +831,7 @@ void RenderFrame(void)
 
 	devcon->ClearUnorderedAccessViewUint (pUAV[0], iClear);
 	devcon->ClearUnorderedAccessViewUint(pUAV[2], iClear);
-	devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
+	//devcon->ClearUnorderedAccessViewFloat(pUAV[1], fClear);
 
 	devcon->OMSetRenderTargetsAndUnorderedAccessViews(1, &backbuffer, zbuffer, 1, 3, pUAV, 0);
 

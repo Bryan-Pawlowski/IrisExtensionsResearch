@@ -38,7 +38,7 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsubsection}{\numberline {2.3.1}In-Depth Description of Implementation}{6}{subsubsection.2.3.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {3}Refraction}{7}{section.3}
+\contentsline {section}{\numberline {3}Refraction}{9}{section.3}
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {3.1}"Fake" Convex Object Refraction}{9}{subsection.3.1}
 \defcounter {refsection}{0}\relax 
@@ -46,82 +46,84 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {subsection}{\numberline {3.2}Better Convex Refraction With Pixel Synchronization}{9}{subsection.3.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {3.2.1}Shader-Based Description of Implementation}{10}{subsubsection.3.2.1}
+\contentsline {subsubsection}{\numberline {3.2.1}Shader-Based Description of Implementation}{9}{subsubsection.3.2.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {4}Findings}{11}{section.4}
+\contentsline {section}{\numberline {4}Implementation Discussion}{12}{section.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {4.1}Performance Metrics}{12}{subsection.4.1}
+\contentsline {subsection}{\numberline {4.1}Boilerplate Code}{12}{subsection.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.1.1}Raw Performance Check of Pixel Synchronization}{12}{subsubsection.4.1.1}
+\contentsline {subsubsection}{\numberline {4.1.1}Defining our Window}{12}{subsubsection.4.1.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.1.2}Subsurface Scattering}{12}{subsubsection.4.1.2}
+\contentsline {subsubsection}{\numberline {4.1.2}Direct3D Setup}{12}{subsubsection.4.1.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {4.1.3}Refraction}{14}{subsubsection.4.1.3}
+\contentsline {subsubsection}{\numberline {4.1.3}Constant Buffer Values Explained}{13}{subsubsection.4.1.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {5}Observations}{17}{section.5}
+\contentsline {subsection}{\numberline {4.2}SubSurface Scattering Shader Walkthrough}{14}{subsection.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.1}Creating and Using Unordered Access Views}{17}{subsection.5.1}
+\contentsline {subsubsection}{\numberline {4.2.1}Pass 1}{14}{subsubsection.4.2.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.2}Unordered Access View Limitations and Recommendations}{18}{subsection.5.2}
+\contentsline {subsubsection}{\numberline {4.2.2}Pass 2}{16}{subsubsection.4.2.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.3}Pixel Synchronization Behavior}{21}{subsection.5.3}
+\contentsline {subsubsection}{\numberline {4.2.3}Pass 3}{17}{subsubsection.4.2.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.4}Coding and Behavior Quirks}{22}{subsection.5.4}
+\contentsline {subsection}{\numberline {4.3}Bad Render Function and Shader Walkthrough}{19}{subsection.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {5.4.1}Working With the GPU Device on the Application Side}{22}{subsubsection.5.4.1}
+\contentsline {subsection}{\numberline {4.4}Culling Demo Render Function and Shader Walkthrough}{20}{subsection.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {5.4.2}Pipeline Behavior}{23}{subsubsection.5.4.2}
+\contentsline {subsection}{\numberline {4.5}Refraction Attempt}{21}{subsection.4.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {5.4.3}Placement of Pixel Synchronization call}{23}{subsubsection.5.4.3}
+\contentsline {subsubsection}{\numberline {4.5.1}Application-Side Overview}{21}{subsubsection.4.5.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {5.4.4}Vertices are Still the Bottleneck}{23}{subsubsection.5.4.4}
+\contentsline {subsubsection}{\numberline {4.5.2}Shader Overview}{21}{subsubsection.4.5.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.5}Suggestions and Advice When Using Pixel Synchronization}{23}{subsection.5.5}
+\contentsline {section}{\numberline {5}Findings}{24}{section.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {5.6}General Suggestions and Advice}{24}{subsection.5.6}
+\contentsline {subsection}{\numberline {5.1}Performance Metrics}{24}{subsection.5.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {6}Conclusion and Recommended Future Work}{28}{section.6}
+\contentsline {subsubsection}{\numberline {5.1.1}Raw Performance Check of Pixel Synchronization}{24}{subsubsection.5.1.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.1}Conclusions About the Utility of Pixel Synchronization}{28}{subsection.6.1}
+\contentsline {subsubsection}{\numberline {5.1.2}Subsurface Scattering}{25}{subsubsection.5.1.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {6.1.1}Key Observations}{28}{subsubsection.6.1.1}
+\contentsline {subsubsection}{\numberline {5.1.3}Refraction}{28}{subsubsection.5.1.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.2}What the Findings Mean}{29}{subsection.6.2}
+\contentsline {section}{\numberline {6}Observations}{32}{section.6}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {6.3}Where to Go From Here}{30}{subsection.6.3}
+\contentsline {subsection}{\numberline {6.1}Creating and Using Unordered Access Views}{32}{subsection.6.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {6.3.1}Finding a Viable Workaround for Looping Over UAVs}{30}{subsubsection.6.3.1}
+\contentsline {subsection}{\numberline {6.2}Unordered Access View Limitations and Recommendations}{33}{subsection.6.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {6.3.2}Pixel Synch Used With Geometry Shaders}{32}{subsubsection.6.3.2}
+\contentsline {subsection}{\numberline {6.3}Pixel Synchronization Behavior}{36}{subsection.6.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {6.3.3}Hack the Pipeline and Use Pixel Synchronization for Parallel Algorithms}{33}{subsubsection.6.3.3}
+\contentsline {subsection}{\numberline {6.4}Coding and Behavior Quirks}{37}{subsection.6.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {6.3.4}Benchmarking the Efficiency of Pixel Ordering/Interlock on Discrete Hardware, Compared to an Integrated Grahpics Architecture}{33}{subsubsection.6.3.4}
+\contentsline {subsubsection}{\numberline {6.4.1}Working With the GPU Device on the Application Side}{37}{subsubsection.6.4.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {7}Implementation Discussion}{34}{section.7}
+\contentsline {subsubsection}{\numberline {6.4.2}Pipeline Behavior}{37}{subsubsection.6.4.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {7.1}Boilerplate Code}{34}{subsection.7.1}
+\contentsline {subsubsection}{\numberline {6.4.3}Placement of Pixel Synchronization call}{38}{subsubsection.6.4.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.1.1}Defining our Window}{34}{subsubsection.7.1.1}
+\contentsline {subsubsection}{\numberline {6.4.4}Vertices are Still the Bottleneck}{38}{subsubsection.6.4.4}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.1.2}Direct3D Setup}{34}{subsubsection.7.1.2}
+\contentsline {subsection}{\numberline {6.5}Suggestions and Advice When Using Pixel Synchronization}{38}{subsection.6.5}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.1.3}Constant Buffer Values Explained}{36}{subsubsection.7.1.3}
+\contentsline {subsection}{\numberline {6.6}General Suggestions and Advice}{39}{subsection.6.6}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {7.2}SubSurface Scattering Shader Walkthrough}{36}{subsection.7.2}
+\contentsline {section}{\numberline {7}Conclusion and Recommended Future Work}{43}{section.7}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.2.1}Pass 1}{36}{subsubsection.7.2.1}
+\contentsline {subsection}{\numberline {7.1}Conclusions About the Utility of Pixel Synchronization}{43}{subsection.7.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.2.2}Pass 2}{37}{subsubsection.7.2.2}
+\contentsline {subsubsection}{\numberline {7.1.1}Key Observations}{43}{subsubsection.7.1.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.2.3}Pass 3}{38}{subsubsection.7.2.3}
+\contentsline {subsection}{\numberline {7.2}What the Findings Mean}{44}{subsection.7.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {7.3}Bad Render Function and Shader Walkthrough}{39}{subsection.7.3}
+\contentsline {subsection}{\numberline {7.3}Where to Go From Here}{45}{subsection.7.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.3.1}Culling Demo Render Function and Shader Walkthrough}{39}{subsubsection.7.3.1}
+\contentsline {subsubsection}{\numberline {7.3.1}Finding a Viable Workaround for Looping Over UAVs}{46}{subsubsection.7.3.1}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsection}{\numberline {7.4}Refraction Attempt}{39}{subsection.7.4}
+\contentsline {subsubsection}{\numberline {7.3.2}Pixel Synch Used With Geometry Shaders}{47}{subsubsection.7.3.2}
 \defcounter {refsection}{0}\relax 
-\contentsline {subsubsection}{\numberline {7.4.1}Overview of Implementation}{39}{subsubsection.7.4.1}
+\contentsline {subsubsection}{\numberline {7.3.3}Hack the Pipeline and Use Pixel Synchronization for Parallel Algorithms}{48}{subsubsection.7.3.3}
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {8}Images of Results}{39}{section.8}
+\contentsline {subsubsection}{\numberline {7.3.4}Benchmarking the Efficiency of Pixel Ordering/Interlock on Discrete Hardware, Compared to an Integrated Grahpics Architecture}{48}{subsubsection.7.3.4}
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {8}Images of Results}{49}{section.8}

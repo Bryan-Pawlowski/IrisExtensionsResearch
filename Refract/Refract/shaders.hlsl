@@ -103,23 +103,11 @@ float4 PVoxelize( VOUT input ) : SV_TARGET
 	VoxMask[voxPos] = 1;//we are at the edge of the model
 
 	[loop]
-	for (i = voxPos.z; i < 512; i++){
-		tempi.z = i;
-		uint temp = VoxMask[tempi];
-		tempArr[i] = temp;
-	}
-
-	[loop]
 	for (i = voxPos.z + 1; i < 512; i++)
 	{
 		tempi.z = i;
 
-		if (tempArr[i] == 0)
-		{
-			VoxMask[tempi] = 2;
-			continue;
-		}
-		break;
+		VoxMask[tempi] = (VoxMask[tempi] + 1) % 3;
 		
 	}
 	
